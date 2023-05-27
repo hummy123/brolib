@@ -6,11 +6,10 @@ type 'key set =
   | L2 of 'key
   | N3 of 'key set * 'key * 'key set * 'key * 'key set
   (* Optimisation constructors. *)
-  | L1
 
 let rec member key set =
   match set with
-  | N0 | L1 -> false
+  | N0  -> false
   | N1 t -> member key t
   | N2 (l, k, r) ->
       if key < k then member key l else if key > k then member key r else true
@@ -25,7 +24,6 @@ let root = function
 let n1 = function
   | L2 a -> N2 (N0, a, N0)
   | N3 (t1, a1, t2, a2, t3) -> N2 (N2 (t1, a1, t2), a2, N1 t3)
-  | N1 N0 -> L1
   | t -> N1 t
 
 let n2_left left key right =
