@@ -2,7 +2,7 @@ let build_avl () =
   let rec loop num map =
     if num = 100_000 then map
     else
-      let map = Avl.add num num map in
+      let map = Avl.add num map in
       loop (num + 1) map
   in
   loop 0 Avl.E
