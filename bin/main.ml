@@ -1,20 +1,22 @@
 let build_avl () =
   let rec loop num map =
-    if num = 100_000 then map
+    if num = 100_000_0 then map
     else
       let map = Avl.add num map in
       loop (num + 1) map
   in
   loop 0 Avl.E
 
+module Broset = Brolib.Make (Int)
+
 let build_broset () =
   let rec loop num tree =
-    if num = 100_000 then tree
+    if num = 100_000_0 then tree
     else
-      let tree = Brolib.insert num tree in
+      let tree = Broset.insert num tree in
       loop (num + 1) tree
   in
-  loop 0 Brolib.N0
+  loop 0 Broset.N0
 
 let () =
   let _ = build_broset () in
