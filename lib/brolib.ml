@@ -1,3 +1,5 @@
+module Brope = Brope
+
 module type OrderedType = sig
   type t
 

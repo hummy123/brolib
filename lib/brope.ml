@@ -13,7 +13,8 @@ let rec size = function
   | N0 s -> String.length s
   | N1 t -> size t
   | N2 (_, lm, rm, _) -> lm + rm
-  | _ -> failwith "unexpected Brope.size"
+  | N3 (t1, t2, t3) -> size t1 + size t2 + size t3
+  | L2 _ -> failwith "unexpected Brope.size: L2"
 
 let root = function
   | L2 (s1, s2) -> N2 (N0 s1, String.length s1, String.length s2, N0 s2)
@@ -46,6 +47,14 @@ let n2_left left right =
       N2 (left, t1_size + t2_size, t3_size + t4_size, right)
   | N3 (t1, t2, t3), (N2 _ as t4) ->
       N3 (N2 (t1, size t1, size t2, t2), N1 t3, t4)
+  | N3 (t1, t2, t3), t4 ->
+      let t1_size = size t1 in
+      let t2_size = size t2 in
+      let left = N2 (t1, t1_size, t2_size, t2) in
+      let t3_size = size t3 in
+      let t4_size = size t4 in
+      let right = N2 (t3, t3_size, t4_size, t4) in
+      N2 (left, t1_size + t2_size, t3_size + t4_size, right)
   | l, r -> N2 (l, size l, size r, r)
 
 let n2_right left right =
@@ -61,6 +70,14 @@ let n2_right left right =
       N2 (left, t1_size + t2_size, t3_size + t4_size, right)
   | (N2 _ as t1), N3 (t2, t3, t4) ->
       N3 (t1, N1 t2, N2 (t3, size t3, size t4, t4))
+  | t1, N3 (t2, t3, t4) ->
+      let t1_size = size t1 in
+      let t2_size = size t2 in
+      let left = N2 (t1, t1_size, t2_size, t2) in
+      let t3_size = size t3 in
+      let t4_size = size t4 in
+      let right = N2 (t3, t3_size, t4_size, t4) in
+      N2 (left, t1_size + t2_size, t3_size + t4_size, right)
   | l, r -> N2 (l, size l, size r, r)
 
 let rec ins cur_index string = function
@@ -89,14 +106,7 @@ let rec ins cur_index string = function
   | N2 (l, lm, _, r) ->
       if cur_index < lm then n2_left (ins cur_index string l) r
       else n2_right l (ins (cur_index - lm) string r)
-  | _ -> failwith ""
+  | N3 _ -> failwith "unexpected Brope.ins: N3"
+  | L2 _ -> failwith "unexpected Brope.ins: L2"
 
-let insert index string rope = root (ins index string rope)
-
-let test =
-  insert 0 "eifoqjewfbvvnfvfvnjfnds" empty
-  |> insert 0 "bvcdf qemn vwjerwpo jweoif wef"
-  |> insert 0 "rewbivneqprvbwrefnvwv kwjo k[eonnrfpo ]"
-  |> insert 0 "bvcdf qemn vwjerwpo jweoif wef"
-  |> insert 0 "rewbivneqprvbwrefnvwv kwjo k[eonnrfpo ]"
-  |> insert 0 "48tfg72934u9igvbjnhgfrvpo39jv8gh9urnowvpj09rhuevnoir"
+let insert index string rope = root (ins (size rope - index) string rope)
