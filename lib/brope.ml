@@ -110,3 +110,25 @@ let rec ins cur_index string = function
   | L2 _ -> failwith "unexpected Brope.ins: L2"
 
 let insert index string rope = root (ins (size rope - index) string rope)
+
+let rec fold f state = function
+  | N0 str -> f state str
+  | N1 t -> fold f state t
+  | N2 (l, _, _, r) ->
+      let state = fold f state l in
+      fold f state r
+  | N3 _ -> failwith "unexpected Brope.fold: N3"
+  | L2 _ -> failwith "unexpected Brope.fold: L2"
+
+let rec fold_back f state = function
+  | N0 str -> f state str
+  | N1 t -> fold_back f state t
+  | N2 (l, _, _, r) ->
+      let state = fold_back f state l in
+      fold_back f state r
+  | N3 _ -> failwith "unexpected Brope.fold_back: N3"
+  | L2 _ -> failwith "unexpected Brope.fold_back: L2"
+
+let to_string rope =
+  let lst = fold_back (fun lst str -> str :: lst) [] rope in
+  String.concat "" lst

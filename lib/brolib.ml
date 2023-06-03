@@ -69,11 +69,3 @@ module Make (Ord : OrderedType) = struct
 
   let insert key set = root (ins key set)
 end
-
-module BroInt = Make (Int)
-
-let _ =
-  BroInt.N2
-    ( BroInt.N2 (BroInt.N2 (BroInt.N0, 1, BroInt.N0), 2, BroInt.N1 BroInt.N0),
-      3,
-      BroInt.N1 (BroInt.N2 (BroInt.N0, 4, BroInt.N0)) )
