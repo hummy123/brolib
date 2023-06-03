@@ -6,7 +6,7 @@ type brope =
   | L2 of string * string
   | N3 of brope * brope * brope
 
-let max_string_length = 512
+let max_string_length = 4
 let empty = N0 ""
 
 let rec size = function
@@ -124,8 +124,8 @@ let rec fold_back f state = function
   | N0 str -> f state str
   | N1 t -> fold_back f state t
   | N2 (l, _, _, r) ->
-      let state = fold_back f state l in
-      fold_back f state r
+      let state = fold_back f state r in
+      fold_back f state l
   | N3 _ -> failwith "unexpected Brope.fold_back: N3"
   | L2 _ -> failwith "unexpected Brope.fold_back: L2"
 
