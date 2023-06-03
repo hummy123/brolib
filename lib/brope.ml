@@ -6,7 +6,7 @@ type brope =
   | L2 of string * string
   | N3 of brope * brope * brope
 
-let max_string_length = 1024
+let max_string_length = 64
 let empty = N0 ""
 
 let rec size = function
@@ -15,7 +15,7 @@ let rec size = function
   | N2 (_, lm, rm, _) -> lm + rm
   | _ -> failwith "unexpected Brope.size"
 
-let n1 = function
+let root = function
   | L2 (s1, s2) -> N2 (N0 s1, String.length s1, String.length s2, N0 s2)
   | N3 (t1, t2, t3) ->
       let t1_size = size t1 in
@@ -85,4 +85,18 @@ let rec ins cur_index string = function
         else
           (* String must be split into 3 different parts. *)
           N3 (N0 sub1, N0 string, N0 sub2)
+  | N1 t -> n1 (ins cur_index string t)
+  | N2 (l, lm, _, r) ->
+      if cur_index < lm then n2_left (ins cur_index string l) r
+      else n2_right l (ins (cur_index - lm) string r)
   | _ -> failwith ""
+
+let insert index string rope = root (ins index string rope)
+
+let test =
+  insert 0 "eifoqjewfbvvnfvfvnjfnds" empty
+  |> insert 0 "bvcdf qemn vwjerwpo jweoif wef"
+  |> insert 0 "rewbivneqprvbwrefnvwv kwjo k[eonnrfpo ]"
+  |> insert 0 "bvcdf qemn vwjerwpo jweoif wef"
+  |> insert 0 "rewbivneqprvbwrefnvwv kwjo k[eonnrfpo ]"
+  |> insert 0 "48tfg72934u9igvbjnhgfrvpo39jv8gh9urnowvpj09rhuevnoir"
