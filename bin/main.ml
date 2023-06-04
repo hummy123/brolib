@@ -1,4 +1,4 @@
-open Brolib.Rope
+open Brolib
 
 let rope_insert pos ins_str rope = Rope512.insert pos ins_str rope
 let rope_delete _ _ rope = rope
