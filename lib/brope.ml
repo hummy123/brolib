@@ -6,7 +6,7 @@ type brope =
   | L2 of string * string
   | N3 of brope * brope * brope
 
-let max_string_length = 4
+let max_string_length = 1024
 let empty = N0 ""
 
 let rec size = function
