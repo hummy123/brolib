@@ -3,13 +3,13 @@ module type StringLength = sig
 end
 
 module Make (Length : StringLength) = struct
-  type brope =
+  type rope =
     | N0 of string
-    | N1 of brope
-    | N2 of brope * int * int * brope
+    | N1 of rope
+    | N2 of rope * int * int * rope
     (* Aux constructors. *)
     | L2 of string * string
-    | N3 of brope * brope * brope
+    | N3 of rope * rope * rope
 
   let empty = N0 ""
   let of_string string = N0 string
@@ -39,7 +39,7 @@ module Make (Length : StringLength) = struct
         N2 (left, t1_size + t2_size, size t3, N1 t3)
     | t -> N1 t
 
-  let n2_left left right =
+  let ins_n2_left left right =
     match (left, right) with
     | L2 (s1, s2), t3 -> N3 (N0 s1, N0 s2, t3)
     | N3 (t1, t2, t3), N1 t4 ->
@@ -62,7 +62,7 @@ module Make (Length : StringLength) = struct
         N2 (left, t1_size + t2_size, t3_size + t4_size, right)
     | l, r -> N2 (l, size l, size r, r)
 
-  let n2_right left right =
+  let ins_n2_right left right =
     match (left, right) with
     | t1, L2 (s1, s2) -> N3 (t1, N0 s1, N0 s2)
     | N1 t1, N3 (t2, t3, t4) ->
@@ -111,12 +111,34 @@ module Make (Length : StringLength) = struct
             N3 (N0 sub1, N0 string, N0 sub2)
     | N1 t -> n1 (ins cur_index string t)
     | N2 (l, lm, _, r) ->
-        if cur_index < lm then n2_left (ins cur_index string l) r
-        else n2_right l (ins (cur_index - lm) string r)
+        if cur_index < lm then ins_n2_left (ins cur_index string l) r
+        else ins_n2_right l (ins (cur_index - lm) string r)
     | N3 _ -> failwith "unexpected Brope.ins: N3"
     | L2 _ -> failwith "unexpected Brope.ins: L2"
 
-  let insert index string rope = root (ins (size rope - index) string rope)
+  let insert index string rope = root (ins index string rope)
+
+  let substring_internal start_idx end_idx acc = function
+    | N0 str ->
+        if start_idx <= 0 && end_idx >= String.length str then
+          (* In range. *)
+          str :: acc
+        else if start_idx >= 0 && end_idx <= String.length str then
+          (* In middle of this node. *)
+          let str = String.sub str start_idx (end_idx - start_idx) in
+          str :: acc
+        else if start_idx >= 0 && end_idx >= String.length str then
+          (* Starts at this node. *)
+          let str = String.sub str start_idx (String.length str - start_idx) in
+          str :: acc
+        else if end_idx <= String.length str then
+          (* Ends at this node. *)
+          let str = String.sub str 0 end_idx in
+          str :: acc
+        else failwith "unexpected Brope.sub: N0"
+    | _ -> failwith ""
+
+  let sub start length rope = substring_internal start (start + length) [] rope
 
   let rec fold f state = function
     | N0 str -> f state str
@@ -140,3 +162,15 @@ module Make (Length : StringLength) = struct
     let lst = fold_back (fun lst str -> str :: lst) [] rope in
     String.concat "" lst
 end
+
+(* Provide a couple of Ropes that may work well for common scenarios. *)
+module Length512 = struct
+  let target_length = 512
+end
+
+module Length1024 = struct
+  let target_length = 1024
+end
+
+module Rope512 = Make (Length512)
+module Rope1024 = Make (Length1024)
