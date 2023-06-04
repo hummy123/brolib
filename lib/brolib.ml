@@ -1,4 +1,4 @@
-module Brope = Brope
+module Rope = Rope
 
 module type OrderedType = sig
   type t
