@@ -131,11 +131,10 @@ module Make (Length : StringLength) = struct
           (* Starts at this node. *)
           let str = String.sub str start_idx (String.length str - start_idx) in
           str :: acc
-        else if end_idx <= String.length str then
+        else
           (* Ends at this node. *)
           let str = String.sub str 0 end_idx in
           str :: acc
-        else failwith "unexpected Brope.sub: N0"
     | N1 t -> sub_internal start_idx end_idx acc t
     | N2 (l, lm, _, r) ->
         (* Cases we need to consider.
@@ -153,6 +152,43 @@ module Make (Length : StringLength) = struct
 
   let sub start length rope =
     sub_internal start (start + length) [] rope |> String.concat ""
+
+  (* Deletion involves deleting strings within nodes rather deleting the nodes themselves,
+     as this helps better maintain balancing.
+  *)
+  let rec del_internal start_idx end_idx = function
+    | N0 str ->
+        if start_idx <= 0 && end_idx >= String.length str then
+          (* In range. *)
+          N0 ""
+        else if start_idx >= 0 && end_idx <= String.length str then
+          (* In middle of this node. *)
+          let sub1 = String.sub str 0 start_idx in
+          let sub2 = String.sub str end_idx (String.length str - end_idx) in
+          N0 (sub1 ^ sub2)
+        else if start_idx >= 0 && end_idx >= String.length str then
+          (* Starts at this node. *)
+          let str = String.sub str 0 start_idx in
+          N0 str
+        else
+          (* Ends at this node. *)
+          let str = String.sub str end_idx (String.length str - end_idx) in
+          N0 str
+    | N1 t -> del_internal start_idx end_idx t
+    | N2 (l, lm, rm, r) ->
+        if lm > start_idx && lm > end_idx then
+          let l = del_internal start_idx end_idx l in
+          N2 (l, size l, rm, r)
+        else if lm < start_idx && lm < end_idx then
+          let r = del_internal (start_idx - lm) (end_idx - lm) r in
+          N2 (l, lm, size r, r)
+        else
+          let r = del_internal (start_idx - lm) (end_idx - lm) r in
+          let l = del_internal start_idx end_idx l in
+          N2 (l, size l, size r, r)
+    | _ -> failwith ""
+
+  let delete start length rope = del_internal start (start + length) rope
 
   let rec fold f state = function
     | N0 str -> f state str
