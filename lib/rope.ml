@@ -118,7 +118,7 @@ module Make (Length : StringLength) = struct
 
   let insert index string rope = root (ins index string rope)
 
-  let substring_internal start_idx end_idx acc = function
+  let rec sub_internal start_idx end_idx acc = function
     | N0 str ->
         if start_idx <= 0 && end_idx >= String.length str then
           (* In range. *)
@@ -136,9 +136,23 @@ module Make (Length : StringLength) = struct
           let str = String.sub str 0 end_idx in
           str :: acc
         else failwith "unexpected Brope.sub: N0"
+    | N1 t -> sub_internal start_idx end_idx acc t
+    | N2 (l, lm, _, r) ->
+        (* Cases we need to consider.
+           1. start_idx and end_idx are in same directions (both less than or both greater than weight).
+           2. start_idx and end_idx are in different direction (start_idx is less than weight while end_idx is less than weight.)
+        *)
+        if lm > start_idx && lm > end_idx then
+          sub_internal start_idx end_idx acc l
+        else if lm < start_idx && lm < end_idx then
+          sub_internal (start_idx - lm) (end_idx - lm) acc r
+        else
+          let acc = sub_internal (start_idx - lm) (end_idx - lm) acc r in
+          sub_internal start_idx end_idx acc l
     | _ -> failwith ""
 
-  let sub start length rope = substring_internal start (start + length) [] rope
+  let sub start length rope =
+    sub_internal start (start + length) [] rope |> String.concat ""
 
   let rec fold f state = function
     | N0 str -> f state str
