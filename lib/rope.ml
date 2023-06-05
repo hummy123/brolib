@@ -214,9 +214,3 @@ module Make (Length : StringLength) = struct
     let lst = fold_back (fun lst str -> str :: lst) [] rope in
     String.concat "" lst
 end
-
-module Length4 = struct
-  let target_length = 4
-end
-
-module Rope = Make (Length4)
