@@ -163,14 +163,8 @@ module Make (Length : StringLength) = struct
     String.concat "" lst
 end
 
-(* Provide a couple of Ropes that may work well for common scenarios. *)
-module Length512 = struct
-  let target_length = 512
+module Length4 = struct
+  let target_length = 4
 end
 
-module Length1024 = struct
-  let target_length = 1024
-end
-
-module Rope512 = Make (Length512)
-module Rope1024 = Make (Length1024)
+module Rope = Make (Length4)
