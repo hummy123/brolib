@@ -191,6 +191,7 @@ module Make (Length : StringLength) = struct
   let delete start length rope = del_internal start (start + length) rope
 
   let rec fold f state = function
+    | N0 "" -> state
     | N0 str -> f state str
     | N1 t -> fold f state t
     | N2 (l, _, _, r) ->
@@ -200,6 +201,7 @@ module Make (Length : StringLength) = struct
     | L2 _ -> failwith "unexpected Brope.fold: L2"
 
   let rec fold_back f state = function
+    | N0 "" -> state
     | N0 str -> f state str
     | N1 t -> fold_back f state t
     | N2 (l, _, _, r) ->
