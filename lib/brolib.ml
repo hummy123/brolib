@@ -1,5 +1,5 @@
 module Rope = Rope
-module Array = Array
+module RopeArray = RopeArray
 
 (* Provide a default Rope that should work well in common scenarios. *)
 module Length1024 = struct
@@ -7,4 +7,4 @@ module Length1024 = struct
 end
 
 module Rope1024 = Rope.Make (Length1024)
-module Array1024 = Array.Make(Length1024)
+module Array1024 = RopeArray.Make (Length1024)
