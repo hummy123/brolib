@@ -1,45 +1,55 @@
-open TargetLength
+open ArrayRopeFdn
 
 module type S = sig
-  type 'a t
+  type elt
+  (** The type of the individual elements in the ArrayRope. *)
+
+  type t
   (** The type of the ArrayRope. *)
 
-  val empty : 'a t
+  val empty : t
   (** The empty ArrayRope. *)
 
-  val of_array : 'a array -> 'a t
+  val of_array : elt array -> t
   (** An ArrayRope constructored from an array. *)
 
-  val singleton : 'a -> 'a t
+  val singleton : elt -> t
   (** An ArrayRope constructed from a single element. *)
 
-  val insert : int -> 'a array -> 'a t -> 'a t
+  val insert : int -> elt array -> t -> t
   (** Inserts an array into an ArrayRope. *)
 
-  val insert_one : int -> 'a -> 'a t -> 'a t
+  val insert_one : int -> elt -> t -> t
   (** Inserts a single element into an ArrayRope. *)
 
-  val sub : int -> int -> 'a t -> 'a array
+  val sub : int -> int -> t -> elt array
   (** Returns an array from the specified range in the ArrayRope. *)
 
-  val delete : int -> int -> 'a t -> 'a t
+  val delete : int -> int -> t -> t
   (** Returns an ArrayRope with elements at the specified range removed. *)
 
-  val to_array : 'a t -> 'a array
+  val to_array : t -> elt array
   (** Returns an array from an ArrayRope. *)
 
-  val fold_left : ('b -> 'a array -> 'b) -> 'b -> 'a t -> 'b
+  val fold_left : ('b -> elt array -> 'b) -> 'b -> t -> 'b
   (** Applies a function on each internal array in the ArrayRope in order, threading an accumulator argument. *)
 
-  val fold_elements_left : ('a -> 'b -> 'a) -> 'a -> 'b t -> 'a
+  val fold_elements_left : ('a -> elt -> 'a) -> 'a -> t -> 'a
   (** Like fold_left, but applies a function to each element instead of the arrays that contain them. *)
 
-  val fold_right : ('a -> 'b array -> 'a) -> 'a -> 'b t -> 'a
+  val fold_right : ('a -> elt array -> 'a) -> 'a -> t -> 'a
   (** Applies a function on each internal array in the ArrayRope in reverse order, threading an accumulator argument. *)
 
-  val fold_elements_right : ('a -> 'b -> 'b) -> 'b -> 'a t -> 'b
+  val fold_elements_right : (elt -> 'a -> 'a) -> 'a -> t -> 'a
   (** Like fold_right, but applies a function on each element instead of the arrays that contain them. *)
 end
 
-module Make (_: TargetLength) : S
+(** Specifies the target length of arrays and the type of the array elements. *)
+module type ArrayConfig = sig
+  type t
+
+  val target_length : int
+end
+
 (** Functor building an implementation of the ArrayRope structure. *)
+module Make (_ : ArrayConfig) : S

@@ -1,138 +1,74 @@
-open TargetLength
-
 module type S = sig
-  type 'a t
+  type elt
+  (** The type of the individual elements in the ArrayRope. *)
+
+  type t
   (** The type of the ArrayRope. *)
 
-  val empty : 'a t
+  val empty : t
   (** The empty ArrayRope. *)
 
-  val of_array : 'a array -> 'a t
+  val of_array : elt array -> t
   (** An ArrayRope constructored from an array. *)
 
-  val singleton : 'a -> 'a t
+  val singleton : elt -> t
   (** An ArrayRope constructed from a single element. *)
 
-  val insert : int -> 'a array -> 'a t -> 'a t
+  val insert : int -> elt array -> t -> t
   (** Inserts an array into an ArrayRope. *)
 
-  val insert_one : int -> 'a -> 'a t -> 'a t
+  val insert_one : int -> elt -> t -> t
   (** Inserts a single element into an ArrayRope. *)
 
-  val sub : int -> int -> 'a t -> 'a array
+  val sub : int -> int -> t -> elt array
   (** Returns an array from the specified range in the ArrayRope. *)
 
-  val delete : int -> int -> 'a t -> 'a t
+  val delete : int -> int -> t -> t
   (** Returns an ArrayRope with elements at the specified range removed. *)
 
-  val to_array : 'a t -> 'a array
+  val to_array : t -> elt array
   (** Returns an array from an ArrayRope. *)
 
-  val fold_left : ('b -> 'a array -> 'b) -> 'b -> 'a t -> 'b
+  val fold_left : ('b -> elt array -> 'b) -> 'b -> t -> 'b
   (** Applies a function on each internal array in the ArrayRope in order, threading an accumulator argument. *)
 
-  val fold_elements_left : ('a -> 'b -> 'a) -> 'a -> 'b t -> 'a
+  val fold_elements_left : ('a -> elt -> 'a) -> 'a -> t -> 'a
   (** Like fold_left, but applies a function to each element instead of the arrays that contain them. *)
 
-  val fold_right : ('a -> 'b array -> 'a) -> 'a -> 'b t -> 'a
+  val fold_right : ('a -> elt array -> 'a) -> 'a -> t -> 'a
   (** Applies a function on each internal array in the ArrayRope in reverse order, threading an accumulator argument. *)
 
-  val fold_elements_right : ('a -> 'b -> 'b) -> 'b -> 'a t -> 'b
+  val fold_elements_right : (elt -> 'a -> 'a) -> 'a -> t -> 'a
   (** Like fold_right, but applies a function on each element instead of the arrays that contain them. *)
 end
 
-module Make (Length : TargetLength) = struct
-  type 'a t =
-    | N0 of 'a array
-    | N1 of 'a t
-    | N2 of 'a t * int * int * 'a t
-    (* Aux constructors. *)
-    | L2 of 'a array * 'a array
-    | N3 of 'a t * 'a t * 'a t
+module type ArrayConfig = sig
+  type t
+
+  val target_length : int
+end
+
+module Make (Config : ArrayConfig) : S = struct
+  module ArrayType = ArrayRopeFdn.ArrayFdn (Config)
+  module ArrayBase = RopeBase.Make (ArrayType)
+  open ArrayRopeFdn
+  open ArrayBase
+
+  type elt = Config.t
+  type t = ArrayBase.t
 
   let empty = N0 [||]
   let of_array array = N0 array
   let singleton element = N0 [| element |]
 
-  let rec size = function
-    | N0 arr -> Array.length arr
-    | N1 t -> size t
-    | N2 (_, lm, rm, _) -> lm + rm
-    | N3 (t1, t2, t3) -> size t1 + size t2 + size t3
-    | L2 _ -> failwith "unexpected Brope.size: L2"
-
-  let root = function
-    | L2 (a1, a2) -> N2 (N0 a1, Array.length a1, Array.length a2, N0 a2)
-    | N3 (t1, t2, t3) ->
-        let t1_size = size t1 in
-        let t2_size = size t2 in
-        let left = N2 (t1, t1_size, t2_size, t2) in
-        N2 (left, t1_size + t2_size, size t3, N1 t3)
-    | t -> t
-
-  let n1 = function
-    | L2 (a1, a2) -> N2 (N0 a1, Array.length a1, Array.length a2, N0 a2)
-    | N3 (t1, t2, t3) ->
-        let t1_size = size t1 in
-        let t2_size = size t2 in
-        let left = N2 (t1, t1_size, t2_size, t2) in
-        N2 (left, t1_size + t2_size, size t3, N1 t3)
-    | t -> N1 t
-
-  let ins_n2_left left right =
-    match (left, right) with
-    | L2 (a1, a2), t3 -> N3 (N0 a1, N0 a2, t3)
-    | N3 (t1, t2, t3), N1 t4 ->
-        let t1_size = size t1 in
-        let t2_size = size t2 in
-        let left = N2 (t1, t1_size, t2_size, t2) in
-        let t3_size = size t3 in
-        let t4_size = size t4 in
-        let right = N2 (t3, t3_size, t4_size, t4) in
-        N2 (left, t1_size + t2_size, t3_size + t4_size, right)
-    | N3 (t1, t2, t3), (N2 _ as t4) ->
-        N3 (N2 (t1, size t1, size t2, t2), N1 t3, t4)
-    | N3 (t1, t2, t3), t4 ->
-        let t1_size = size t1 in
-        let t2_size = size t2 in
-        let left = N2 (t1, t1_size, t2_size, t2) in
-        let t3_size = size t3 in
-        let t4_size = size t4 in
-        let right = N2 (t3, t3_size, t4_size, t4) in
-        N2 (left, t1_size + t2_size, t3_size + t4_size, right)
-    | l, r -> N2 (l, size l, size r, r)
-
-  let ins_n2_right left right =
-    match (left, right) with
-    | t1, L2 (a1, a2) -> N3 (t1, N0 a1, N0 a2)
-    | N1 t1, N3 (t2, t3, t4) ->
-        let t1_size = size t1 in
-        let t2_size = size t2 in
-        let left = N2 (t1, t1_size, t2_size, t2) in
-        let t3_size = size t3 in
-        let t4_size = size t4 in
-        let right = N2 (t3, t3_size, t4_size, t4) in
-        N2 (left, t1_size + t2_size, t3_size + t4_size, right)
-    | (N2 _ as t1), N3 (t2, t3, t4) ->
-        N3 (t1, N1 t2, N2 (t3, size t3, size t4, t4))
-    | t1, N3 (t2, t3, t4) ->
-        let t1_size = size t1 in
-        let t2_size = size t2 in
-        let left = N2 (t1, t1_size, t2_size, t2) in
-        let t3_size = size t3 in
-        let t4_size = size t4 in
-        let right = N2 (t3, t3_size, t4_size, t4) in
-        N2 (left, t1_size + t2_size, t3_size + t4_size, right)
-    | l, r -> N2 (l, size l, size r, r)
-
   let rec ins cur_index ins_arr = function
     | N0 old_arr ->
         if cur_index <= 0 then
-          if Array.length old_arr + Array.length ins_arr <= Length.target_length
+          if Array.length old_arr + Array.length ins_arr <= Config.target_length
           then N0 (Array.append ins_arr old_arr)
           else L2 (ins_arr, old_arr)
         else if cur_index >= Array.length old_arr then
-          if Array.length old_arr + Array.length ins_arr <= Length.target_length
+          if Array.length old_arr + Array.length ins_arr <= Config.target_length
           then N0 (Array.append old_arr ins_arr)
           else L2 (old_arr, ins_arr)
         else
@@ -140,13 +76,13 @@ module Make (Length : TargetLength) = struct
           let sub2 =
             Array.sub old_arr cur_index (Array.length old_arr - cur_index)
           in
-          if Array.length old_arr + Array.length ins_arr <= Length.target_length
+          if Array.length old_arr + Array.length ins_arr <= Config.target_length
           then N0 (Array.concat [ sub1; ins_arr; sub2 ])
           else if
-            Array.length sub1 + Array.length ins_arr <= Length.target_length
+            Array.length sub1 + Array.length ins_arr <= Config.target_length
           then L2 (Array.append sub1 ins_arr, sub2)
           else if
-            Array.length sub2 + Array.length ins_arr <= Length.target_length
+            Array.length sub2 + Array.length ins_arr <= Config.target_length
           then L2 (sub1, Array.append ins_arr sub2)
           else
             (* Array must be split into 3 different parts. *)
@@ -232,16 +168,8 @@ module Make (Length : TargetLength) = struct
     | _ -> failwith ""
 
   let delete start length rope = del_internal start (start + length) rope
-
-  let rec fold_left f state = function
-    | N0 [||] -> state
-    | N0 arr -> f state arr
-    | N1 t -> fold_left f state t
-    | N2 (l, _, _, r) ->
-        let state = fold_left f state l in
-        fold_left f state r
-    | N3 _ -> failwith "unexpected Brope.fold: N3"
-    | L2 _ -> failwith "unexpected Brope.fold: L2"
+  let fold_left = fold_left
+  let fold_right = fold_right
 
   let rec fold_elements_left f state = function
     | N0 [||] -> state
@@ -250,18 +178,8 @@ module Make (Length : TargetLength) = struct
     | N2 (l, _, _, r) ->
         let state = fold_elements_left f state l in
         fold_elements_left f state r
-    | N3 _ -> failwith "unexpected Brope.fold: N3"
-    | L2 _ -> failwith "unexpected Brope.fold: L2"
-
-  let rec fold_right f state = function
-    | N0 [||] -> state
-    | N0 arr -> f state arr
-    | N1 t -> fold_right f state t
-    | N2 (l, _, _, r) ->
-        let state = fold_right f state r in
-        fold_right f state l
-    | N3 _ -> failwith "unexpected Brope.fold_back: N3"
-    | L2 _ -> failwith "unexpected Brope.fold_back: L2"
+    | N3 _ -> failwith "unexpected Rope.fold: N3"
+    | L2 _ -> failwith "unexpected Rope.fold: L2"
 
   let rec fold_elements_right f state = function
     | N0 [||] -> state
@@ -270,8 +188,8 @@ module Make (Length : TargetLength) = struct
     | N2 (l, _, _, r) ->
         let state = fold_elements_right f state r in
         fold_elements_right f state l
-    | N3 _ -> failwith "unexpected Brope.fold_back: N3"
-    | L2 _ -> failwith "unexpected Brope.fold_back: L2"
+    | N3 _ -> failwith "unexpected Rope.fold_back: N3"
+    | L2 _ -> failwith "unexpected Rope.fold_back: L2"
 
   let to_array rope =
     fold_right (fun lst arr -> arr :: lst) [] rope |> Array.concat

@@ -1,4 +1,5 @@
 open TargetLength
+open RopeBase
 
 module Make (Length : TargetLength) = struct
   type rope =
@@ -111,8 +112,8 @@ module Make (Length : TargetLength) = struct
     | N2 (l, lm, _, r) ->
         if cur_index < lm then ins_n2_left (ins cur_index string l) r
         else ins_n2_right l (ins (cur_index - lm) string r)
-    | N3 _ -> failwith "unexpected Brope.ins: N3"
-    | L2 _ -> failwith "unexpected Brope.ins: L2"
+    | N3 _ -> failwith "unexpected Rope.ins: N3"
+    | L2 _ -> failwith "unexpected Rope.ins: L2"
 
   let insert index string rope = root (ins index string rope)
 
