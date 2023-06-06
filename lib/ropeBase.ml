@@ -12,19 +12,39 @@ module type Foundation = sig
     | N3 of t * t * t
 
   val length : elt -> metadata
+  (** Returns the metadata (array size, etc.) of the subtree this is called on. *)
+
   val concat : elt list -> elt
+  (** Returns an element concatenation. *)
+
   val is_empty : elt -> bool
+  (** Returns a bool indicating whether the element is empty. *)
+
   val combine : metadata -> metadata -> metadata
+  (** Sums two metadata types together to produce a new one. *)
+
+  val less_than_weight : int -> metadata -> bool
+  (** Whether the index is less than the left metadata. *)
+
+  val greater_than_weight : int -> metadata -> bool
+
+  val subtract_weight : int -> metadata -> int
+  (** Subtracts the weight from the current integer index, as needed for tree traversal. *)
+
+  val insert_leaf : int -> elt -> elt -> t
+  (** Function specifying how to insert into a leaf, taking index and (old and new) elts into account. *)
+
+  val sub_leaf : int -> int -> elt -> elt list -> elt list
+  (** Specifies how to extract a sub from a leaf node, given start and end index, element at this node and accumulator. *)
+
+  val del_leaf : int -> int -> elt -> t
+  (** Specifies how to delete a leaf, whether delete means delete all or delete start/middle/end. *)
 end
 
 module Make (Fnd : Foundation) = struct
-  type t =
-    | N0 of Fnd.elt
-    | N1 of t
-    | N2 of t * Fnd.metadata * Fnd.metadata * t
-    (* Aux constructors. *)
-    | L2 of Fnd.elt * Fnd.elt
-    | N3 of t * t * t
+  type t = Fnd.t
+
+  open Fnd
 
   let rec size = function
     | N0 s -> Fnd.length s
@@ -119,4 +139,70 @@ module Make (Fnd : Foundation) = struct
         fold_right f state l
     | N3 _ -> failwith "unexpected Rope.fold_back: N3"
     | L2 _ -> failwith "unexpected Rope.fold_back: L2"
+
+  let rec ins cur_index ins_val = function
+    | N0 old_val -> Fnd.insert_leaf cur_index old_val ins_val
+    | N1 t -> n1 (ins cur_index ins_val t)
+    | N2 (l, lm, _, r) ->
+        if Fnd.less_than_weight cur_index lm then
+          ins_n2_left (ins cur_index ins_val l) r
+        else ins_n2_right l (ins (Fnd.subtract_weight cur_index lm) ins_val r)
+    | N3 _ -> failwith "unexpected Rope.ins: N3"
+    | L2 _ -> failwith "unexpected Rope.ins: L2"
+
+  let rec sub_internal start_idx end_idx acc = function
+    | N0 elt -> Fnd.sub_leaf start_idx end_idx elt acc
+    | N1 t -> sub_internal start_idx end_idx acc t
+    | N2 (l, lm, _, r) ->
+        (* Cases we need to consider.
+           1. start_idx and end_idx are in same directions (both less than or both greater than weight).
+              (if end index is less than weight, then start index must be too;
+               if start index is greater than weight, then end index must be too.)
+           2. start_idx and end_idx are in different direction (start_idx is less than weight while end_idx is less than weight.)
+        *)
+        if Fnd.less_than_weight end_idx lm then
+          sub_internal start_idx end_idx acc l
+        else if Fnd.greater_than_weight start_idx lm then
+          sub_internal
+            (Fnd.subtract_weight start_idx lm)
+            (Fnd.subtract_weight end_idx lm)
+            acc r
+        else
+          let acc =
+            sub_internal
+              (Fnd.subtract_weight start_idx lm)
+              (Fnd.subtract_weight end_idx lm)
+              acc r
+          in
+          sub_internal start_idx end_idx acc l
+    | _ -> failwith "unexpected Rope.sub_internal"
+
+  (* Deletion involves deleting strings within nodes rather deleting the nodes themselves,
+     as this helps better maintain balancing.
+  *)
+  let rec del_internal start_idx end_idx = function
+    | N0 elt -> del_leaf start_idx end_idx elt
+    | N1 t -> del_internal start_idx end_idx t
+    | N2 (l, lm, rm, r) ->
+        if Fnd.less_than_weight end_idx lm then
+          let l = del_internal start_idx end_idx l in
+          N2 (l, size l, rm, r)
+        else if Fnd.greater_than_weight start_idx lm then
+          let r =
+            del_internal
+              (Fnd.subtract_weight start_idx lm)
+              (Fnd.subtract_weight end_idx lm)
+              r
+          in
+          N2 (l, lm, size r, r)
+        else
+          let r =
+            del_internal
+              (Fnd.subtract_weight start_idx lm)
+              (Fnd.subtract_weight end_idx lm)
+              r
+          in
+          let l = del_internal start_idx end_idx l in
+          N2 (l, size l, size r, r)
+    | _ -> failwith "unexpected Rope.del_internal"
 end

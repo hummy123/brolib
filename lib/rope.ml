@@ -1,5 +1,4 @@
 open TargetLength
-open RopeBase
 
 module Make (Length : TargetLength) = struct
   type rope =
