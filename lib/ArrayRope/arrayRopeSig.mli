@@ -1,5 +1,3 @@
-open ArrayRopeFdn
-
 module type S = sig
   type elt
   (** The type of the individual elements in the ArrayRope. *)
@@ -44,12 +42,15 @@ module type S = sig
   (** Like fold_right, but applies a function on each element instead of the arrays that contain them. *)
 end
 
-(** Specifies the target length of arrays and the type of the array elements. *)
 module type ArrayConfig = sig
   type t
+  (** The type of the array elements. *)
 
   val target_length : int
+  (** 
+      The target length of the innternal arrays. 
+      If a single insert is larger than this target length, we will not change its size.
+      However, no other internal array can ever exceed this size.
+      This has performance implications.
+    *)
 end
-
-(** Functor building an implementation of the ArrayRope structure. *)
-module Make (_ : ArrayConfig) : S

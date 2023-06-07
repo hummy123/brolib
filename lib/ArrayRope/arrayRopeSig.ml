@@ -1,3 +1,4 @@
+(** Signature file for ArrayRope to keep implementation file (ArrayRope.ml) clean. *)
 module type S = sig
   type elt
   (** The type of the individual elements in the ArrayRope. *)
@@ -44,33 +45,13 @@ end
 
 module type ArrayConfig = sig
   type t
+  (** The type of the array elements. *)
+
   val target_length : int
-end
-
-module Make (Config : ArrayConfig) : S = struct
-  module ArrayType = ArrayRopeFdn.ArrayFdn (Config)
-  module ArrayBase = RopeBase.Make (ArrayType)
-  open ArrayType
-  open ArrayBase
-
-  type elt = Config.t
-  type t = ArrayBase.t
-
-  let empty = N0 [||]
-  let of_array array = N0 array
-  let singleton element = N0 [| element |]
-  let insert index array rope = root (ins index array rope)
-  let insert_one index element rope = root (ins index [| element |] rope)
-
-  let sub start length rope =
-    sub_internal start (start + length) [] rope |> Array.concat
-
-  let delete start length rope = del_internal start (start + length) rope
-  let fold_left = fold_left
-  let fold_elements_left = fold_elements_left
-  let fold_right = fold_right
-  let fold_elements_right = fold_elements_right
-
-  let to_array rope =
-    fold_right (fun lst arr -> arr :: lst) [] rope |> Array.concat
+  (** 
+      The target length of the innternal arrays. 
+      If a single insert is larger than this target length, we will not change its size.
+      However, no other internal array can ever exceed this size.
+      This has performance implications.
+    *)
 end
