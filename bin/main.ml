@@ -1,25 +1,25 @@
 open Brolib
 
-let rope_insert pos ins_str rope = Rope1024.insert pos ins_str rope
-let rope_delete start length rope = Rope1024.delete start length rope
-let rope_to_string rope = Rope1024.to_string rope
+let rope_insert pos ins_str rope = Text.insert pos ins_str rope
+let rope_delete start length rope = Text.delete start length rope
+let rope_to_string rope = Text.to_string rope
 
 let () =
   Printf.printf "\n-\t Rope edit traces \t-";
   let svelte =
-    Utils.run_txns_time "Svelete Rope" Sveltecomponent.data Rope1024.empty
+    Utils.run_txns_time "Svelete Rope" Sveltecomponent.data Text.empty
       rope_insert rope_delete
   in
   let rust =
-    Utils.run_txns_time "Rustcode Rope" Rustcode.data Rope1024.empty rope_insert
+    Utils.run_txns_time "Rustcode Rope" Rustcode.data Text.empty rope_insert
       rope_delete
   in
   let seph =
-    Utils.run_txns_time "Sephblog Rope" Sephblog.data Rope1024.empty rope_insert
+    Utils.run_txns_time "Sephblog Rope" Sephblog.data Text.empty rope_insert
       rope_delete
   in
   let automerge =
-    Utils.run_txns_time "Automerge Rope" Automerge.data Rope1024.empty
+    Utils.run_txns_time "Automerge Rope" Automerge.data Text.empty
       rope_insert rope_delete
   in
   Printf.printf "\n-\t Rope to_string \t-";
