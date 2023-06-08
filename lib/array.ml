@@ -1,26 +1,32 @@
 open TargetLength
 
-module Make (Length : TargetLength) = struct
-  type rope =
-    | N0 of string
-    | N1 of rope
-    | N2 of rope * int * int * rope
-    (* Aux constructors. *)
-    | L2 of string * string
-    | N3 of rope * rope * rope
+(* Redfine module "String" to be module "Array" so minimal changes needed. *)
+module String = Stdlib.Array
+let (^) a b = Stdlib.Array.append a b
 
-  let empty = N0 ""
-  let of_string string = N0 string
+module Make (Length : TargetLength) = struct
+  type 'a rope =
+    | N0 of 'a array
+    | N1 of 'a rope
+    | N2 of 'a rope * int * int * 'a rope
+    (* Aux constructors. *)
+    | L2 of 'a array * 'a array
+    | N3 of 'a rope * 'a rope * 'a rope
+
+  let empty = N0 [||]
+  let of_string array = N0 array
+
+  let length = String.length
 
   let rec size = function
-    | N0 s -> String.length s
+    | N0 s -> length s
     | N1 t -> size t
     | N2 (_, lm, rm, _) -> lm + rm
     | N3 (t1, t2, t3) -> size t1 + size t2 + size t3
     | L2 _ -> failwith "unexpected Brope.size: L2"
 
   let root = function
-    | L2 (s1, s2) -> N2 (N0 s1, String.length s1, String.length s2, N0 s2)
+    | L2 (s1, s2) -> N2 (N0 s1, length s1, length s2, N0 s2)
     | N3 (t1, t2, t3) ->
         let t1_size = size t1 in
         let t2_size = size t2 in
@@ -29,7 +35,7 @@ module Make (Length : TargetLength) = struct
     | t -> t
 
   let n1 = function
-    | L2 (s1, s2) -> N2 (N0 s1, String.length s1, String.length s2, N0 s2)
+    | L2 (s1, s2) -> N2 (N0 s1, length s1, length s2, N0 s2)
     | N3 (t1, t2, t3) ->
         let t1_size = size t1 in
         let t2_size = size t2 in
@@ -86,7 +92,7 @@ module Make (Length : TargetLength) = struct
   let rec ins cur_index string = function
     | N0 str ->
         if cur_index <= 0 then
-          if String.length str + String.length string <= Length.target_length
+          if length str + length string <= Length.target_length
           then N0 (string ^ str)
           else L2 (string, str)
         else if cur_index >= String.length str then
@@ -149,7 +155,7 @@ module Make (Length : TargetLength) = struct
     | _ -> failwith ""
 
   let sub start length rope =
-    sub_internal start (start + length) [] rope |> String.concat ""
+    sub_internal start (start + length) [] rope |> String.concat 
 
   (* Deletion involves deleting strings within nodes rather deleting the nodes themselves,
      as this helps better maintain balancing.
@@ -158,7 +164,7 @@ module Make (Length : TargetLength) = struct
     | N0 str ->
         if start_idx <= 0 && end_idx >= String.length str then
           (* In range. *)
-          N0 ""
+          N0 [||]
         else if start_idx >= 0 && end_idx <= String.length str then
           (* In middle of this node. *)
           let sub1 = String.sub str 0 start_idx in
@@ -189,7 +195,7 @@ module Make (Length : TargetLength) = struct
   let delete start length rope = del_internal start (start + length) rope
 
   let rec fold f state = function
-    | N0 "" -> state
+    | N0 [||] -> state
     | N0 str -> f state str
     | N1 t -> fold f state t
     | N2 (l, _, _, r) ->
@@ -199,7 +205,7 @@ module Make (Length : TargetLength) = struct
     | L2 _ -> failwith "unexpected Brope.fold: L2"
 
   let rec fold_back f state = function
-    | N0 "" -> state
+    | N0 [||] -> state
     | N0 str -> f state str
     | N1 t -> fold_back f state t
     | N2 (l, _, _, r) ->
@@ -209,6 +215,6 @@ module Make (Length : TargetLength) = struct
     | L2 _ -> failwith "unexpected Brope.fold_back: L2"
 
   let to_string rope =
-    let lst = fold_back (fun lst str -> str :: lst) [] rope in
-    String.concat "" lst
+    fold_back (fun lst str -> str :: lst) [] rope 
+    |> String.concat 
 end

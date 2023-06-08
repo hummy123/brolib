@@ -1,4 +1,2 @@
-(include_subdirs unqualified)
-
 (library
  (name brolib))
