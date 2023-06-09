@@ -1,3 +1,1 @@
-module Text = Text
-module Array = Array
-
+module TextRope = TextRope

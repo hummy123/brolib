@@ -6,6 +6,8 @@ type rope =
   | L2 of string * string
   | N3 of rope * rope * rope
 
+type t = rope
+
 (* We accept and don't modify strings with a length of more than 1024,
    but we don't build any strings longer than that ourselves.
    The target_length has performance implications and 1024 seems like a good size from benchmarks. *)
