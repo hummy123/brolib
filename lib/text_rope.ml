@@ -151,42 +151,61 @@ let rec sub_internal start_idx end_idx acc = function
 let sub start length rope =
   sub_internal start (start + length) [] rope |> String.concat ""
 
-(* Deletion involves deleting strings within nodes rather deleting the nodes themselves,
-   as this helps better maintain balancing.
+(*
+    Deletion involves deleting strings within nodes rather deleting the nodes themselves,
+    as this helps better maintain balancing.
+    A deletion may actually insert a new node into the 1-2 Brother Tree in one case.
+    This happens only when the two following conditions are true:
+      (a) We are deleting the middle of a string that is longer than target_length.
+      (b) Joining the two strings back together would result in a string still longer than target_length.
+    We propagate a boolean indicating if this happened, and call the insert rebalancing operations if it did.
 *)
 let rec del_internal start_idx end_idx = function
   | N0 str ->
       if start_idx <= 0 && end_idx >= String.length str then
         (* In range. *)
-        N0 ""
+        (N0 "", false)
       else if start_idx >= 0 && end_idx <= String.length str then
         (* In middle of this node. *)
         let sub1 = String.sub str 0 start_idx in
         let sub2 = String.sub str end_idx (String.length str - end_idx) in
-        N0 (sub1 ^ sub2)
+        if String.length sub1 + String.length sub2 <= target_length then
+          (N0 (sub1 ^ sub2), false)
+        else (L2 (sub1, sub2), true)
       else if start_idx >= 0 && end_idx >= String.length str then
         (* Starts at this node. *)
         let str = String.sub str 0 start_idx in
-        N0 str
+        (N0 str, false)
       else
         (* Ends at this node. *)
         let str = String.sub str end_idx (String.length str - end_idx) in
-        N0 str
-  | N1 t -> del_internal start_idx end_idx t
+        (N0 str, false)
+  | N1 t ->
+      let t, did_ins = del_internal start_idx end_idx t in
+      if did_ins then (n1 t, true) else (N1 t, false)
   | N2 (l, lm, rm, r) ->
       if lm > start_idx && lm > end_idx then
-        let l = del_internal start_idx end_idx l in
-        N2 (l, size l, rm, r)
+        let l, did_ins = del_internal start_idx end_idx l in
+        match did_ins with
+        | false -> (N2 (l, size l, rm, r), false)
+        | true -> (ins_n2_left l r, true)
       else if lm < start_idx && lm < end_idx then
-        let r = del_internal (start_idx - lm) (end_idx - lm) r in
-        N2 (l, lm, size r, r)
+        let r, did_ins = del_internal (start_idx - lm) (end_idx - lm) r in
+        match did_ins with
+        | false -> (N2 (l, lm, size r, r), false)
+        | true -> (ins_n2_right l r, true)
       else
-        let r = del_internal (start_idx - lm) (end_idx - lm) r in
-        let l = del_internal start_idx end_idx l in
-        N2 (l, size l, size r, r)
+        (* It is only possible for did_ins to be true for one side as it only happens when deleting at the middle of a node. *)
+        let r, did_ins_r = del_internal (start_idx - lm) (end_idx - lm) r in
+        let l, did_ins_l = del_internal start_idx end_idx l in
+        if did_ins_l then (ins_n2_left l r, true)
+        else if did_ins_r then (ins_n2_right l r, true)
+        else (N2 (l, size l, size r, r), false)
   | _ -> failwith ""
 
-let delete start length rope = del_internal start (start + length) rope
+let delete start length rope =
+  let rope, did_ins = del_internal start (start + length) rope in
+  if did_ins then root rope else rope
 
 let rec fold f state = function
   | N0 "" -> state
