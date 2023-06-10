@@ -89,57 +89,143 @@ let n1 = function
       let rm8, rm16, rm32 = count_string_stats s2 0 0 0 in
       N2 { l = N0 s1; lm8; lm16; lm32; rm8; rm16; rm32; r = N0 s2 }
   | N3 (t1, t2, t3) ->
-      let t1_size = size t1 in
-      let t2_size = size t2 in
-      let left = N2 { l = t1; lm = t1_size; rm = t2_size; r = t2 } in
-      N2 { l = left; lm = t1_size + t2_size; rm = size t3; r = N1 t3 }
+      let lm8, lm16, lm32 = size t1 in
+      let rm8, rm16, rm32 = size t2 in
+      let left = N2 { l = t1; lm8; lm16; lm32; rm8; rm16; rm32; r = t2 } in
+      let lm8 = lm8 + rm8 in
+      let lm16 = lm16 + rm16 in
+      let lm32 = lm32 + rm32 in
+      let rm8, rm16, rm32 = size t3 in
+      N2 { l = left; lm8; lm16; lm32; rm8; rm16; rm32; r = N1 t3 }
   | t -> N1 t
 
 let ins_n2_left left right =
   match (left, right) with
   | L2 (s1, s2), t3 -> N3 (N0 s1, N0 s2, t3)
   | N3 (t1, t2, t3), N1 t4 ->
-      let t1_size = size t1 in
-      let t2_size = size t2 in
-      let left = N2 { l = t1; lm = t1_size; rm = t2_size; r = t2 } in
-      let t3_size = size t3 in
-      let t4_size = size t4 in
-      let right = N2 { l = t3; lm = t3_size; rm = t4_size; r = t4 } in
-      N2 { l = left; lm = t1_size + t2_size; rm = t3_size + t4_size; r = right }
+      let lm8, lm16, lm32 = size t1 in
+      let rm8, rm16, rm32 = size t2 in
+      let left = N2 { l = t1; lm8; lm16; lm32; rm8; rm16; rm32; r = t2 } in
+      let lm_8, lm_16, lm_32 = size t3 in
+      let rm_8, rm_16, rm_32 = size t4 in
+      let right =
+        N2
+          {
+            l = t3;
+            lm8 = lm_8;
+            lm16 = lm_16;
+            lm32 = lm_32;
+            rm8 = rm_8;
+            rm16 = rm_16;
+            rm32 = rm_32;
+            r = t4;
+          }
+      in
+      let lm8 = lm8 + rm8 in
+      let lm16 = lm16 + rm16 in
+      let lm32 = lm32 + rm32 in
+      let rm8 = rm_8 + lm_8 in
+      let rm16 = rm_16 + lm_16 in
+      let rm32 = rm_32 + lm_32 in
+      N2 { l = left; lm8; lm16; lm32; rm8; rm16; rm32; r = right }
   | N3 (t1, t2, t3), (N2 _ as t4) ->
-      N3 (N2 { l = t1; lm = size t1; rm = size t2; r = t2 }, N1 t3, t4)
+      let lm8, lm16, lm32 = size t1 in
+      let rm8, rm16, rm32 = size t2 in
+      N3 (N2 { l = t1; lm8; lm16; lm32; rm8; rm16; rm32; r = t2 }, N1 t3, t4)
   | N3 (t1, t2, t3), t4 ->
-      let t1_size = size t1 in
-      let t2_size = size t2 in
-      let left = N2 { l = t1; lm = t1_size; rm = t2_size; r = t2 } in
-      let t3_size = size t3 in
-      let t4_size = size t4 in
-      let right = N2 { l = t3; lm = t3_size; rm = t4_size; r = t4 } in
-      N2 { l = left; lm = t1_size + t2_size; rm = t3_size + t4_size; r = right }
-  | l, r -> N2 { l; lm = size l; rm = size r; r }
+      let lm8, lm16, lm32 = size t1 in
+      let rm8, rm16, rm32 = size t2 in
+      let left = N2 { l = t1; lm8; lm16; lm32; rm8; rm16; rm32; r = t2 } in
+      let lm_8, lm_16, lm_32 = size t3 in
+      let rm_8, rm_16, rm_32 = size t4 in
+      let right =
+        N2
+          {
+            l = t3;
+            lm8 = lm_8;
+            lm16 = lm_16;
+            lm32 = lm_32;
+            rm8 = rm_8;
+            rm16 = rm_16;
+            rm32 = rm_32;
+            r = t4;
+          }
+      in
+      let lm8 = lm8 + rm8 in
+      let lm16 = lm16 + rm16 in
+      let lm32 = lm32 + rm32 in
+      let rm8 = lm_8 + rm_8 in
+      let rm16 = lm_16 + rm_16 in
+      let rm32 = lm_32 + rm_32 in
+      N2 { l = left; lm8; lm16; lm32; rm8; rm16; rm32; r = right }
+  | l, r ->
+      let lm8, lm16, lm32 = size l in
+      let rm8, rm16, rm32 = size r in
+      N2 { l; lm8; lm16; lm32; rm8; rm16; rm32; r }
 
 let ins_n2_right left right =
   match (left, right) with
   | t1, L2 (s1, s2) -> N3 (t1, N0 s1, N0 s2)
   | N1 t1, N3 (t2, t3, t4) ->
-      let t1_size = size t1 in
-      let t2_size = size t2 in
-      let left = N2 { l = t1; lm = t1_size; rm = t2_size; r = t2 } in
-      let t3_size = size t3 in
-      let t4_size = size t4 in
-      let right = N2 { l = t3; lm = t3_size; rm = t4_size; r = t4 } in
-      N2 { l = left; lm = t1_size + t2_size; rm = t3_size + t4_size; r = right }
+      let lm8, lm16, lm32 = size t1 in
+      let rm8, rm16, rm32 = size t2 in
+      let left = N2 { l = t1; lm8; lm16; lm32; rm8; rm16; rm32; r = t2 } in
+      let lm_8, lm_16, lm_32 = size t3 in
+      let rm_8, rm_16, rm_32 = size t4 in
+      let right =
+        N2
+          {
+            l = t3;
+            lm8 = lm_8;
+            lm16 = lm_16;
+            lm32 = lm_32;
+            rm8 = rm_8;
+            rm16 = rm_16;
+            rm32 = rm_32;
+            r = t4;
+          }
+      in
+      let lm8 = lm8 + rm8 in
+      let lm16 = lm16 + rm16 in
+      let lm32 = lm32 + rm32 in
+      let rm8 = lm_8 + rm_8 in
+      let rm16 = lm_16 + rm_16 in
+      let rm32 = lm_32 + rm_32 in
+      N2 { l = left; lm8; lm16; lm32; rm8; rm16; rm32; r = right }
   | (N2 _ as t1), N3 (t2, t3, t4) ->
-      N3 (t1, N1 t2, N2 { l = t3; lm = size t3; rm = size t4; r = t4 })
+      let lm8, lm16, lm32 = size t3 in
+      let rm8, rm16, rm32 = size t4 in
+      N3 (t1, N1 t2, N2 { l = t3; lm8; lm16; lm32; rm8; rm16; rm32; r = t4 })
   | t1, N3 (t2, t3, t4) ->
-      let t1_size = size t1 in
-      let t2_size = size t2 in
-      let left = N2 { l = t1; lm = t1_size; rm = t2_size; r = t2 } in
-      let t3_size = size t3 in
-      let t4_size = size t4 in
-      let right = N2 { l = t3; lm = t3_size; rm = t4_size; r = t4 } in
-      N2 { l = left; lm = t1_size + t2_size; rm = t3_size + t4_size; r = right }
-  | l, r -> N2 { l; lm = size l; rm = size r; r }
+      let lm8, lm16, lm32 = size t1 in
+      let rm8, rm16, rm32 = size t2 in
+      let left = N2 { l = t1; lm8; lm16; lm32; rm8; rm16; rm32; r = t2 } in
+      let lm_8, lm_16, lm_32 = size t3 in
+      let rm_8, rm_16, rm_32 = size t4 in
+      let right =
+        N2
+          {
+            l = t3;
+            lm8 = lm_8;
+            lm16 = lm_16;
+            lm32 = lm_32;
+            rm8 = rm_8;
+            rm16 = rm_16;
+            rm32 = rm_32;
+            r = t4;
+          }
+      in
+      let lm8 = lm8 + rm8 in
+      let lm16 = lm16 + rm16 in
+      let lm32 = lm32 + rm32 in
+      let rm8 = lm_8 + rm_8 in
+      let rm16 = lm_16 + rm_16 in
+      let rm32 = lm_32 + rm_32 in
+      N2 { l = left; lm8; lm16; lm32; rm8; rm16; rm32; r = right }
+  | l, r ->
+      let lm8, lm16, lm32 = size l in
+      let rm8, rm16, rm32 = size r in
+      N2 { l; lm8; lm16; lm32; rm8; rm16; rm32; r }
 
 let rec ins cur_index string = function
   | N0 str ->
