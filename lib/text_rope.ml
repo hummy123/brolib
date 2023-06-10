@@ -287,28 +287,30 @@ let rec sub_internal start_idx end_idx acc = function
         str :: acc
       else if start_idx >= 0 && end_idx <= String.length str then
         (* In middle of this node. *)
-        let str = String.sub str start_idx (end_idx - start_idx) in
+        let str = utf32_sub str start_idx (end_idx - start_idx) 0 0 0 in
         str :: acc
       else if start_idx >= 0 && end_idx >= String.length str then
         (* Starts at this node. *)
-        let str = String.sub str start_idx (String.length str - start_idx) in
+        let str =
+          utf32_sub str start_idx (String.length str - start_idx) 0 0 0
+        in
         str :: acc
       else
         (* Ends at this node. *)
-        let str = String.sub str 0 end_idx in
+        let str = utf32_sub str 0 end_idx 0 0 0 in
         str :: acc
   | N1 t -> sub_internal start_idx end_idx acc t
-  | N2 { l; lm; r; _ } ->
+  | N2 { l; lm32; r; _ } ->
       (* Cases we need to consider.
          1. start_idx and end_idx are in same directions (both less than or both greater than weight).
          2. start_idx and end_idx are in different direction (start_idx is less than weight while end_idx is less than weight.)
       *)
-      if lm > start_idx && lm > end_idx then
+      if lm32 > start_idx && lm32 > end_idx then
         sub_internal start_idx end_idx acc l
-      else if lm < start_idx && lm < end_idx then
-        sub_internal (start_idx - lm) (end_idx - lm) acc r
+      else if lm32 < start_idx && lm32 < end_idx then
+        sub_internal (start_idx - lm32) (end_idx - lm32) acc r
       else
-        let acc = sub_internal (start_idx - lm) (end_idx - lm) acc r in
+        let acc = sub_internal (start_idx - lm32) (end_idx - lm32) acc r in
         sub_internal start_idx end_idx acc l
   | _ -> failwith ""
 
@@ -331,40 +333,47 @@ let rec del_internal start_idx end_idx = function
         (N0 "", false)
       else if start_idx >= 0 && end_idx <= String.length str then
         (* In middle of this node. *)
-        let sub1 = String.sub str 0 start_idx in
-        let sub2 = String.sub str end_idx (String.length str - end_idx) in
+        let sub1 = utf32_sub str 0 start_idx 0 0 0 in
+        let sub2 = utf32_sub str end_idx (String.length str - end_idx) 0 0 0 in
         if String.length sub1 + String.length sub2 <= target_length then
           (N0 (sub1 ^ sub2), false)
         else (L2 (sub1, sub2), true)
       else if start_idx >= 0 && end_idx >= String.length str then
         (* Starts at this node. *)
-        let str = String.sub str 0 start_idx in
+        let str = utf32_sub str 0 start_idx 0 0 0 in
         (N0 str, false)
       else
         (* Ends at this node. *)
-        let str = String.sub str end_idx (String.length str - end_idx) in
+        let str = utf32_sub str end_idx (String.length str - end_idx) 0 0 0 in
         (N0 str, false)
   | N1 t ->
       let t, did_ins = del_internal start_idx end_idx t in
       if did_ins then (n1 t, true) else (N1 t, false)
-  | N2 { l; lm; rm; r } ->
-      if lm > start_idx && lm > end_idx then
+  | N2 { l; lm8; lm16; lm32; rm8; rm16; rm32; r } ->
+      if lm32 > start_idx && lm32 > end_idx then
         let l, did_ins = del_internal start_idx end_idx l in
         match did_ins with
-        | false -> (N2 { l; lm = size l; rm; r }, false)
+        | false ->
+            let lm8, lm16, lm32 = size l in
+            (N2 { l; lm8; lm16; lm32; rm8; rm16; rm32; r }, false)
         | true -> (ins_n2_left l r, true)
-      else if lm < start_idx && lm < end_idx then
-        let r, did_ins = del_internal (start_idx - lm) (end_idx - lm) r in
+      else if lm32 < start_idx && lm32 < end_idx then
+        let r, did_ins = del_internal (start_idx - lm32) (end_idx - lm32) r in
         match did_ins with
-        | false -> (N2 { l; lm; rm = size r; r }, false)
+        | false ->
+            let rm8, rm16, rm32 = size r in
+            (N2 { l; lm8; lm16; lm32; rm8; rm16; rm32; r }, false)
         | true -> (ins_n2_right l r, true)
       else
         (* It is only possible for did_ins to be true for one side as it only happens when deleting at the middle of a node. *)
-        let r, did_ins_r = del_internal (start_idx - lm) (end_idx - lm) r in
+        let r, did_ins_r = del_internal (start_idx - lm32) (end_idx - lm32) r in
         let l, did_ins_l = del_internal start_idx end_idx l in
         if did_ins_l then (ins_n2_left l r, true)
         else if did_ins_r then (ins_n2_right l r, true)
-        else (N2 { l; lm = size l; rm = size r; r }, false)
+        else
+          let lm8, lm16, lm32 = size l in
+          let rm8, rm16, rm32 = size r in
+          (N2 { l; lm8; lm16; lm32; rm8; rm16; rm32; r }, false)
   | _ -> failwith ""
 
 let delete start length rope =
