@@ -23,6 +23,27 @@ let rec count_string_stats string u8_pos u16_ctr u32_ctr =
     count_string_stats string (u8_pos + u8_length) (u16_ctr + u16_length)
       (u32_ctr + 1)
 
+(* Like count_string_stats, but lower allocation cost because it only returns the length in UTF-32 instead of a tuple. *)
+let rec count_utf32_length string u8_pos u32_ctr =
+  if u8_pos = String.length string then u32_ctr
+  else
+    let chr = String.unsafe_get string u8_pos in
+    let u8_length = utf8_length chr in
+    count_utf32_length string (u8_pos + u8_length) (u32_ctr + 1)
+
+let rec utf32_sub string sub_start sub_length u8_pos u32_pos counted_start =
+  if u8_pos = String.length string then
+    String.sub string counted_start (String.length string - counted_start)
+  else
+    let chr = String.unsafe_get string u8_pos in
+    let u8_pos = utf8_length chr + u8_pos in
+    if u32_pos = counted_start then
+      utf32_sub string sub_start sub_length u8_pos (u32_pos + 1) u32_pos
+    else if u32_pos = sub_start + sub_length then
+      String.sub string counted_start (u32_pos - counted_start)
+    else
+      utf32_sub string sub_start sub_length u8_pos (u32_pos + 1) counted_start
+
 type rope =
   | N0 of string
   | N1 of rope
@@ -233,22 +254,24 @@ let rec ins cur_index string = function
         if String.length str + String.length string <= target_length then
           N0 (string ^ str)
         else L2 (string, str)
-      else if cur_index >= String.length str then
-        if String.length str + String.length string <= target_length then
-          N0 (str ^ string)
-        else L2 (str, string)
       else
-        let sub1 = String.sub str 0 cur_index in
-        let sub2 = String.sub str cur_index (String.length str - cur_index) in
-        if String.length str + String.length string <= target_length then
-          N0 (sub1 ^ string ^ sub2)
-        else if String.length sub1 + String.length string <= target_length then
-          L2 (sub1 ^ string, sub2)
-        else if String.length sub2 + String.length string <= target_length then
-          L2 (sub1, string ^ sub2)
+        let u32_length = count_utf32_length string 0 0 in
+        if cur_index >= u32_length then
+          if String.length str + String.length string <= target_length then
+            N0 (str ^ string)
+          else L2 (str, string)
         else
-          (* String must be split into 3 different parts. *)
-          N3 (N0 sub1, N0 string, N0 sub2)
+          let sub1 = String.sub str 0 cur_index in
+          let sub2 = String.sub str cur_index (u32_length - cur_index) in
+          if String.length str + String.length string <= target_length then
+            N0 (sub1 ^ string ^ sub2)
+          else if String.length sub1 + String.length string <= target_length
+          then L2 (sub1 ^ string, sub2)
+          else if String.length sub2 + String.length string <= target_length
+          then L2 (sub1, string ^ sub2)
+          else
+            (* String must be split into 3 different parts. *)
+            N3 (N0 sub1, N0 string, N0 sub2)
   | N1 t -> n1 (ins cur_index string t)
   | N2 { l; lm; r; _ } ->
       if cur_index < lm then ins_n2_left (ins cur_index string l) r
