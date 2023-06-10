@@ -261,8 +261,8 @@ let rec ins cur_index string = function
             N0 (str ^ string)
           else L2 (str, string)
         else
-          let sub1 = String.sub str 0 cur_index in
-          let sub2 = String.sub str cur_index (u32_length - cur_index) in
+          let sub1 = utf32_sub str 0 cur_index 0 0 0 in
+          let sub2 = utf32_sub str cur_index (u32_length - cur_index) 0 0 0 in
           if String.length str + String.length string <= target_length then
             N0 (sub1 ^ string ^ sub2)
           else if String.length sub1 + String.length string <= target_length
@@ -273,9 +273,9 @@ let rec ins cur_index string = function
             (* String must be split into 3 different parts. *)
             N3 (N0 sub1, N0 string, N0 sub2)
   | N1 t -> n1 (ins cur_index string t)
-  | N2 { l; lm; r; _ } ->
-      if cur_index < lm then ins_n2_left (ins cur_index string l) r
-      else ins_n2_right l (ins (cur_index - lm) string r)
+  | N2 { l; lm32; r; _ } ->
+      if cur_index < lm32 then ins_n2_left (ins cur_index string l) r
+      else ins_n2_right l (ins (cur_index - lm32) string r)
   | _ -> failwith ""
 
 let insert index string rope = root (ins index string rope)
