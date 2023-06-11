@@ -1,7 +1,7 @@
 type rope =
   | N0 of string
   | N1 of rope
-  | N2 of rope * int * int * rope
+  | N2 of { l : rope; lm : int; rm : int; r : rope }
   (* Aux constructors. *)
   | L2 of string * string
   | N3 of rope * rope * rope
@@ -18,26 +18,28 @@ let of_string string = N0 string
 let rec size = function
   | N0 s -> String.length s
   | N1 t -> size t
-  | N2 (_, lm, rm, _) -> lm + rm
+  | N2 { lm; rm; _ } -> lm + rm
   | N3 (t1, t2, t3) -> size t1 + size t2 + size t3
   | _ -> failwith ""
 
 let root = function
-  | L2 (s1, s2) -> N2 (N0 s1, String.length s1, String.length s2, N0 s2)
+  | L2 (s1, s2) ->
+      N2 { l = N0 s1; lm = String.length s1; rm = String.length s2; r = N0 s2 }
   | N3 (t1, t2, t3) ->
       let t1_size = size t1 in
       let t2_size = size t2 in
-      let left = N2 (t1, t1_size, t2_size, t2) in
-      N2 (left, t1_size + t2_size, size t3, N1 t3)
+      let left = N2 { l = t1; lm = t1_size; rm = t2_size; r = t2 } in
+      N2 { l = left; lm = t1_size + t2_size; rm = size t3; r = N1 t3 }
   | t -> t
 
 let n1 = function
-  | L2 (s1, s2) -> N2 (N0 s1, String.length s1, String.length s2, N0 s2)
+  | L2 (s1, s2) ->
+      N2 { l = N0 s1; lm = String.length s1; rm = String.length s2; r = N0 s2 }
   | N3 (t1, t2, t3) ->
       let t1_size = size t1 in
       let t2_size = size t2 in
-      let left = N2 (t1, t1_size, t2_size, t2) in
-      N2 (left, t1_size + t2_size, size t3, N1 t3)
+      let left = N2 { l = t1; lm = t1_size; rm = t2_size; r = t2 } in
+      N2 { l = left; lm = t1_size + t2_size; rm = size t3; r = N1 t3 }
   | t -> N1 t
 
 let ins_n2_left left right =
@@ -46,22 +48,22 @@ let ins_n2_left left right =
   | N3 (t1, t2, t3), N1 t4 ->
       let t1_size = size t1 in
       let t2_size = size t2 in
-      let left = N2 (t1, t1_size, t2_size, t2) in
+      let left = N2 { l = t1; lm = t1_size; rm = t2_size; r = t2 } in
       let t3_size = size t3 in
       let t4_size = size t4 in
-      let right = N2 (t3, t3_size, t4_size, t4) in
-      N2 (left, t1_size + t2_size, t3_size + t4_size, right)
+      let right = N2 { l = t3; lm = t3_size; rm = t4_size; r = t4 } in
+      N2 { l = left; lm = t1_size + t2_size; rm = t3_size + t4_size; r = right }
   | N3 (t1, t2, t3), (N2 _ as t4) ->
-      N3 (N2 (t1, size t1, size t2, t2), N1 t3, t4)
+      N3 (N2 { l = t1; lm = size t1; rm = size t2; r = t2 }, N1 t3, t4)
   | N3 (t1, t2, t3), t4 ->
       let t1_size = size t1 in
       let t2_size = size t2 in
-      let left = N2 (t1, t1_size, t2_size, t2) in
+      let left = N2 { l = t1; lm = t1_size; rm = t2_size; r = t2 } in
       let t3_size = size t3 in
       let t4_size = size t4 in
-      let right = N2 (t3, t3_size, t4_size, t4) in
-      N2 (left, t1_size + t2_size, t3_size + t4_size, right)
-  | l, r -> N2 (l, size l, size r, r)
+      let right = N2 { l = t3; lm = t3_size; rm = t4_size; r = t4 } in
+      N2 { l = left; lm = t1_size + t2_size; rm = t3_size + t4_size; r = right }
+  | l, r -> N2 { l; lm = size l; rm = size r; r }
 
 let ins_n2_right left right =
   match (left, right) with
@@ -109,7 +111,7 @@ let rec ins cur_index string = function
           (* String must be split into 3 different parts. *)
           N3 (N0 sub1, N0 string, N0 sub2)
   | N1 t -> n1 (ins cur_index string t)
-  | N2 (l, lm, _, r) ->
+  | N2 { l; lm; r; _ } ->
       if cur_index < lm then ins_n2_left (ins cur_index string l) r
       else ins_n2_right l (ins (cur_index - lm) string r)
   | _ -> failwith ""
@@ -134,7 +136,7 @@ let rec sub_internal start_idx end_idx acc = function
         let str = String.sub str 0 end_idx in
         str :: acc
   | N1 t -> sub_internal start_idx end_idx acc t
-  | N2 (l, lm, _, r) ->
+  | N2 { l; lm; r; _ } ->
       (* Cases we need to consider.
          1. start_idx and end_idx are in same directions (both less than or both greater than weight).
          2. start_idx and end_idx are in different direction (start_idx is less than weight while end_idx is less than weight.)
@@ -211,7 +213,7 @@ let rec fold f state = function
   | N0 "" -> state
   | N0 str -> f state str
   | N1 t -> fold f state t
-  | N2 (l, _, _, r) ->
+  | N2 { l; r; _ } ->
       let state = fold f state l in
       fold f state r
   | _ -> failwith ""
@@ -220,7 +222,7 @@ let rec fold_back f state = function
   | N0 "" -> state
   | N0 str -> f state str
   | N1 t -> fold_back f state t
-  | N2 (l, _, _, r) ->
+  | N2 { l; r; _ } ->
       let state = fold_back f state r in
       fold_back f state l
   | _ -> failwith ""

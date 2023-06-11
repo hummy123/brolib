@@ -1,2 +1,2 @@
-module Text_rope = Text_rope
+module Utf8_rope = Utf8_rope
 module Array_rope = Array_rope
