@@ -185,16 +185,16 @@ let rec del_internal start_idx end_idx = function
   | N1 t ->
       let t, did_ins = del_internal start_idx end_idx t in
       if did_ins then (n1 t, true) else (N1 t, false)
-  | N2 (l, lm, rm, r) ->
+  | N2 { l; lm; rm; r } ->
       if lm > start_idx && lm > end_idx then
         let l, did_ins = del_internal start_idx end_idx l in
         match did_ins with
-        | false -> (N2 (l, size l, rm, r), false)
+        | false -> (N2 { l; lm = size l; rm; r }, false)
         | true -> (ins_n2_left l r, true)
       else if lm < start_idx && lm < end_idx then
         let r, did_ins = del_internal (start_idx - lm) (end_idx - lm) r in
         match did_ins with
-        | false -> (N2 (l, lm, size r, r), false)
+        | false -> (N2 { l; lm; rm = size r; r }, false)
         | true -> (ins_n2_right l r, true)
       else
         (* It is only possible for did_ins to be true for one side as it only happens when deleting at the middle of a node. *)
@@ -202,7 +202,7 @@ let rec del_internal start_idx end_idx = function
         let l, did_ins_l = del_internal start_idx end_idx l in
         if did_ins_l then (ins_n2_left l r, true)
         else if did_ins_r then (ins_n2_right l r, true)
-        else (N2 (l, size l, size r, r), false)
+        else (N2 { l; lm = size l; rm = size r; r }, false)
   | _ -> failwith ""
 
 let delete start length rope =
