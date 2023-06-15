@@ -20,7 +20,12 @@ type rope =
       r : rope;
     }
   (* Aux constructors. *)
-  | L2 of string * string
+  | L2 of {
+      s1 : string;
+      s1_lines : int array;
+      s2 : string;
+      s2_lines : int array;
+    }
   | N3 of rope * rope * rope
 
 type t = rope
@@ -33,20 +38,51 @@ let empty = N0 { str = ""; lines = [||] }
 let of_string string = N0 { str = string; lines = count_line_breaks string }
 
 let rec size = function
-  | N0 s -> String.length s
+  | N0 s -> (String.length s.str, Array.length s.lines)
   | N1 t -> size t
-  | N2 { lm; rm; _ } -> lm + rm
-  | N3 (t1, t2, t3) -> size t1 + size t2 + size t3
+  | N2 { lm; rm; lm_lines; rm_lines; _ } -> (lm + rm, lm_lines + rm_lines)
+  | N3 (t1, t2, t3) ->
+      let idx1, lines1 = size t1 in
+      let idx2, lines2 = size t2 in
+      let idx3, lines3 = size t3 in
+      (idx1 + idx2 + idx3, lines1 + lines2 + lines3)
   | _ -> failwith ""
 
 let root = function
-  | L2 (s1, s2) ->
-      N2 { l = N0 s1; lm = String.length s1; rm = String.length s2; r = N0 s2 }
+  | L2 { s1; s1_lines; s2; s2_lines } ->
+      N2
+        {
+          l = N0 { str = s1; lines = s1_lines };
+          lm = String.length s1;
+          lm_lines = Array.length s1_lines;
+          rm = String.length s2;
+          rm_lines = Array.length s2_lines;
+          r = N0 { str = s2; lines = s2_lines };
+        }
   | N3 (t1, t2, t3) ->
-      let t1_size = size t1 in
-      let t2_size = size t2 in
-      let left = N2 { l = t1; lm = t1_size; rm = t2_size; r = t2 } in
-      N2 { l = left; lm = t1_size + t2_size; rm = size t3; r = N1 t3 }
+      let t1_idx, t1_lines = size t1 in
+      let t2_idx, t2_lines = size t2 in
+      let t3_idx, t3_lines = size t3 in
+      let left =
+        N2
+          {
+            l = t1;
+            lm = t1_idx;
+            lm_lines = t1_lines;
+            rm = t2_idx;
+            rm_lines = t2_lines;
+            r = t2;
+          }
+      in
+      N2
+        {
+          l = left;
+          lm = t1_idx + t2_idx;
+          lm_lines = t1_lines + t2_lines;
+          rm = t3_idx;
+          rm_lines = t3_lines;
+          r = N1 t3;
+        }
   | t -> t
 
 let n1 = function
