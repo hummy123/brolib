@@ -86,37 +86,129 @@ let root = function
   | t -> t
 
 let n1 = function
-  | L2 (s1, s2) ->
-      N2 { l = N0 s1; lm = String.length s1; rm = String.length s2; r = N0 s2 }
+  | L2 { s1; s1_lines; s2; s2_lines } ->
+      N2
+        {
+          l = N0 { str = s1; lines = s1_lines };
+          lm = String.length s1;
+          lm_lines = Array.length s1_lines;
+          rm = String.length s2;
+          rm_lines = Array.length s2_lines;
+          r = N0 { str = s2; lines = s2_lines };
+        }
   | N3 (t1, t2, t3) ->
-      let t1_size = size t1 in
-      let t2_size = size t2 in
-      let left = N2 { l = t1; lm = t1_size; rm = t2_size; r = t2 } in
-      N2 { l = left; lm = t1_size + t2_size; rm = size t3; r = N1 t3 }
+      let t1_idx, t1_lines = size t1 in
+      let t2_idx, t2_lines = size t2 in
+      let t3_idx, t3_lines = size t3 in
+      let left =
+        N2
+          {
+            l = t1;
+            lm = t1_idx;
+            lm_lines = t1_lines;
+            rm = t2_idx;
+            rm_lines = t2_lines;
+            r = t2;
+          }
+      in
+      N2
+        {
+          l = left;
+          lm = t1_idx + t2_idx;
+          lm_lines = t1_lines + t2_lines;
+          rm = t3_idx;
+          rm_lines = t3_lines;
+          r = N1 t3;
+        }
   | t -> N1 t
 
 let ins_n2_left left right =
   match (left, right) with
-  | L2 (s1, s2), t3 -> N3 (N0 s1, N0 s2, t3)
+  | L2 { s1; s1_lines; s2; s2_lines }, t3 ->
+      N3
+        ( N0 { str = s1; lines = s1_lines },
+          N0 { str = s2; lines = s2_lines },
+          t3 )
   | N3 (t1, t2, t3), N1 t4 ->
-      let t1_size = size t1 in
-      let t2_size = size t2 in
-      let left = N2 { l = t1; lm = t1_size; rm = t2_size; r = t2 } in
-      let t3_size = size t3 in
-      let t4_size = size t4 in
-      let right = N2 { l = t3; lm = t3_size; rm = t4_size; r = t4 } in
-      N2 { l = left; lm = t1_size + t2_size; rm = t3_size + t4_size; r = right }
+      let t1_idx, t1_lines = size t1 in
+      let t2_idx, t2_lines = size t2 in
+      let left =
+        N2
+          {
+            l = t1;
+            lm = t1_idx;
+            lm_lines = t1_lines;
+            rm = t2_idx;
+            rm_lines = t2_lines;
+            r = t2;
+          }
+      in
+      let t3_idx, t3_lines = size t3 in
+      let t4_idx, t4_lines = size t4 in
+      let right =
+        N2
+          {
+            l = t3;
+            lm = t3_idx;
+            lm_lines = t3_lines;
+            rm = t4_idx;
+            rm_lines = t4_lines;
+            r = t4;
+          }
+      in
+      N2
+        {
+          l = left;
+          lm = t1_idx + t2_idx;
+          lm_lines = t1_lines + t2_lines;
+          rm = t3_idx + t4_idx;
+          rm_lines = t3_lines + t4_lines;
+          r = right;
+        }
   | N3 (t1, t2, t3), (N2 _ as t4) ->
-      N3 (N2 { l = t1; lm = size t1; rm = size t2; r = t2 }, N1 t3, t4)
+      let lm, lm_lines = size t1 in
+      let rm, rm_lines = size t2 in
+      N3 (N2 { l = t1; lm; lm_lines; rm; rm_lines; r = t2 }, N1 t3, t4)
   | N3 (t1, t2, t3), t4 ->
-      let t1_size = size t1 in
-      let t2_size = size t2 in
-      let left = N2 { l = t1; lm = t1_size; rm = t2_size; r = t2 } in
-      let t3_size = size t3 in
-      let t4_size = size t4 in
-      let right = N2 { l = t3; lm = t3_size; rm = t4_size; r = t4 } in
-      N2 { l = left; lm = t1_size + t2_size; rm = t3_size + t4_size; r = right }
-  | l, r -> N2 { l; lm = size l; rm = size r; r }
+      let t1_idx, t1_lines = size t1 in
+      let t2_idx, t2_lines = size t2 in
+      let left =
+        N2
+          {
+            l = t1;
+            lm = t1_idx;
+            lm_lines = t1_lines;
+            rm = t2_idx;
+            rm_lines = t2_lines;
+            r = t2;
+          }
+      in
+      let t3_idx, t3_lines = size t3 in
+      let t4_idx, t4_lines = size t4 in
+      let right =
+        N2
+          {
+            l = t3;
+            lm = t3_idx;
+            lm_lines = t3_lines;
+            rm = t4_idx;
+            rm_lines = t4_lines;
+            r = t4;
+          }
+      in
+      N2
+        {
+          l = left;
+          lm = t1_idx + t2_idx;
+          lm_lines = t1_lines + t2_lines;
+          rm = t3_idx + t4_idx;
+          rm_lines = t3_lines + t4_lines;
+          r = right;
+        }
+  | l, r ->
+      let lm, lm_lines = size l in
+      let rm, rm_lines = size r in
+      N2 { l; lm; lm_lines; rm; rm_lines; r }
 
 let ins_n2_right left right =
   match (left, right) with
