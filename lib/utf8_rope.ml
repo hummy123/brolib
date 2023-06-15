@@ -212,26 +212,91 @@ let ins_n2_left left right =
 
 let ins_n2_right left right =
   match (left, right) with
-  | t1, L2 (s1, s2) -> N3 (t1, N0 s1, N0 s2)
+  | t1, L2 { s1; s1_lines; s2; s2_lines } ->
+      N3
+        ( t1,
+          N0 { str = s1; lines = s1_lines },
+          N0 { str = s2; lines = s2_lines } )
   | N1 t1, N3 (t2, t3, t4) ->
-      let t1_size = size t1 in
-      let t2_size = size t2 in
-      let left = N2 { l = t1; lm = t1_size; rm = t2_size; r = t2 } in
-      let t3_size = size t3 in
-      let t4_size = size t4 in
-      let right = N2 { l = t3; lm = t3_size; rm = t4_size; r = t4 } in
-      N2 { l = left; lm = t1_size + t2_size; rm = t3_size + t4_size; r = right }
+      let t1_idx, t1_lines = size t1 in
+      let t2_idx, t2_lines = size t2 in
+      let left =
+        N2
+          {
+            l = t1;
+            lm = t1_idx;
+            lm_lines = t1_lines;
+            rm = t2_idx;
+            rm_lines = t2_lines;
+            r = t2;
+          }
+      in
+      let t3_idx, t3_lines = size t3 in
+      let t4_idx, t4_lines = size t4 in
+      let right =
+        N2
+          {
+            l = t3;
+            lm = t3_idx;
+            lm_lines = t3_lines;
+            rm = t4_idx;
+            rm_lines = t4_lines;
+            r = t4;
+          }
+      in
+      N2
+        {
+          l = left;
+          lm = t1_idx + t2_idx;
+          lm_lines = t1_lines + t2_lines;
+          rm = t3_idx + t4_idx;
+          rm_lines = t3_lines + t4_lines;
+          r = right;
+        }
   | (N2 _ as t1), N3 (t2, t3, t4) ->
-      N3 (t1, N1 t2, N2 { l = t3; lm = size t3; rm = size t4; r = t4 })
+      let lm, lm_lines = size t3 in
+      let rm, rm_lines = size t4 in
+      N3 (t1, N1 t2, N2 { l = t3; lm; lm_lines; rm; rm_lines; r = t4 })
   | t1, N3 (t2, t3, t4) ->
-      let t1_size = size t1 in
-      let t2_size = size t2 in
-      let left = N2 { l = t1; lm = t1_size; rm = t2_size; r = t2 } in
-      let t3_size = size t3 in
-      let t4_size = size t4 in
-      let right = N2 { l = t3; lm = t3_size; rm = t4_size; r = t4 } in
-      N2 { l = left; lm = t1_size + t2_size; rm = t3_size + t4_size; r = right }
-  | l, r -> N2 { l; lm = size l; rm = size r; r }
+      let t1_idx, t1_lines = size t1 in
+      let t2_idx, t2_lines = size t2 in
+      let left =
+        N2
+          {
+            l = t1;
+            lm = t1_idx;
+            lm_lines = t1_lines;
+            rm = t2_idx;
+            rm_lines = t2_lines;
+            r = t2;
+          }
+      in
+      let t3_idx, t3_lines = size t3 in
+      let t4_idx, t4_lines = size t4 in
+      let right =
+        N2
+          {
+            l = t3;
+            lm = t3_idx;
+            lm_lines = t3_lines;
+            rm = t4_idx;
+            rm_lines = t4_lines;
+            r = t4;
+          }
+      in
+      N2
+        {
+          l = left;
+          lm = t1_idx + t2_idx;
+          lm_lines = t1_lines + t2_lines;
+          rm = t3_idx + t4_idx;
+          rm_lines = t3_lines + t4_lines;
+          r = right;
+        }
+  | l, r ->
+      let lm, lm_lines = size l in
+      let rm, rm_lines = size r in
+      N2 { l; lm; lm_lines; rm; rm_lines; r }
 
 let rec ins cur_index string = function
   | N0 str ->
