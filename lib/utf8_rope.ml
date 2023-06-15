@@ -1,7 +1,24 @@
+let rec count_line_breaks_loop str u8_pos acc prev_is_cr =
+  if u8_pos = String.length str then List.rev acc |> Array.of_list
+  else
+    let chr = String.unsafe_get str u8_pos in
+    if chr = '\r' || (chr = '\n' && not prev_is_cr) then
+      count_line_breaks_loop str (u8_pos + 1) (u8_pos :: acc) (chr = '\r')
+    else count_line_breaks_loop str (u8_pos + 1) acc false
+
+let count_line_breaks str = count_line_breaks_loop str 0 [] false
+
 type rope =
-  | N0 of string
+  | N0 of { str : string; lines : int array }
   | N1 of rope
-  | N2 of { l : rope; lm : int; rm : int; r : rope }
+  | N2 of {
+      l : rope;
+      lm : int;
+      lm_lines : int;
+      rm : int;
+      rm_lines : int;
+      r : rope;
+    }
   (* Aux constructors. *)
   | L2 of string * string
   | N3 of rope * rope * rope
@@ -12,8 +29,8 @@ type t = rope
    but we don't build any strings longer than that ourselves.
    The target_length has performance implications and 1024 seems like a good size from benchmarks. *)
 let target_length = 1024
-let empty = N0 ""
-let of_string string = N0 string
+let empty = N0 { str = ""; lines = [||] }
+let of_string string = N0 { str = string; lines = count_line_breaks string }
 
 let rec size = function
   | N0 s -> String.length s
@@ -118,41 +135,6 @@ let rec ins cur_index string = function
 
 let insert index string rope = root (ins index string rope)
 
-let rec sub_internal start_idx end_idx acc = function
-  | N0 str ->
-      if start_idx <= 0 && end_idx >= String.length str then
-        (* In range. *)
-        str :: acc
-      else if start_idx >= 0 && end_idx <= String.length str then
-        (* In middle of this node. *)
-        let str = String.sub str start_idx (end_idx - start_idx) in
-        str :: acc
-      else if start_idx >= 0 && end_idx >= String.length str then
-        (* Starts at this node. *)
-        let str = String.sub str start_idx (String.length str - start_idx) in
-        str :: acc
-      else
-        (* Ends at this node. *)
-        let str = String.sub str 0 end_idx in
-        str :: acc
-  | N1 t -> sub_internal start_idx end_idx acc t
-  | N2 { l; lm; r; _ } ->
-      (* Cases we need to consider.
-         1. start_idx and end_idx are in same directions (both less than or both greater than weight).
-         2. start_idx and end_idx are in different direction (start_idx is less than weight while end_idx is less than weight.)
-      *)
-      if lm > start_idx && lm > end_idx then
-        sub_internal start_idx end_idx acc l
-      else if lm < start_idx && lm < end_idx then
-        sub_internal (start_idx - lm) (end_idx - lm) acc r
-      else
-        let acc = sub_internal (start_idx - lm) (end_idx - lm) acc r in
-        sub_internal start_idx end_idx acc l
-  | _ -> failwith ""
-
-let sub start length rope =
-  sub_internal start (start + length) [] rope |> String.concat ""
-
 (*
     Deletion involves deleting strings within nodes rather deleting the nodes themselves,
     as this helps better maintain balancing.
@@ -208,6 +190,48 @@ let rec del_internal start_idx end_idx = function
 let delete start length rope =
   let rope, did_ins = del_internal start (start + length) rope in
   if did_ins then root rope else rope
+
+let rec sub_internal start_idx end_idx acc = function
+  | N0 str ->
+      if start_idx <= 0 && end_idx >= String.length str then
+        (* In range. *)
+        str :: acc
+      else if start_idx >= 0 && end_idx <= String.length str then
+        (* In middle of this node. *)
+        let str = String.sub str start_idx (end_idx - start_idx) in
+        str :: acc
+      else if start_idx >= 0 && end_idx >= String.length str then
+        (* Starts at this node. *)
+        let str = String.sub str start_idx (String.length str - start_idx) in
+        str :: acc
+      else
+        (* Ends at this node. *)
+        let str = String.sub str 0 end_idx in
+        str :: acc
+  | N1 t -> sub_internal start_idx end_idx acc t
+  | N2 { l; lm; r; _ } ->
+      (* Cases we need to consider.
+         1. start_idx and end_idx are in same directions (both less than or both greater than weight).
+         2. start_idx and end_idx are in different direction (start_idx is less than weight while end_idx is less than weight.)
+      *)
+      if lm > start_idx && lm > end_idx then
+        sub_internal start_idx end_idx acc l
+      else if lm < start_idx && lm < end_idx then
+        sub_internal (start_idx - lm) (end_idx - lm) acc r
+      else
+        let acc = sub_internal (start_idx - lm) (end_idx - lm) acc r in
+        sub_internal start_idx end_idx acc l
+  | _ -> failwith ""
+
+let sub start length rope =
+  sub_internal start (start + length) [] rope |> String.concat ""
+
+(* let sub_lines_internal start_line end_line acc = function *)
+(*   | N1 t -> sub_lines_internal start_line end_line acc t *)
+(*   | *)
+
+(* let sub_lines start_line num_of_lines rope = *)
+(*   sub_lines_internal start (start + num_of_lines) [] rope |> String.concat "" *)
 
 let rec fold f state = function
   | N0 "" -> state
