@@ -1,3 +1,4 @@
+(* Functions for manipulating line break arrays. *)
 let rec count_line_breaks ?(u8_pos = 0) ?(acc = []) ?(prev_is_cr = false) str =
   if u8_pos = String.length str then List.rev acc |> Array.of_list
   else
@@ -67,7 +68,8 @@ type t = rope
 (* We accept and don't modify strings with a length of more than 1024,
    but we don't build any strings longer than that ourselves.
    The target_length has performance implications and 1024 seems like a good size from benchmarks. *)
-let target_length = 1024
+let string_length = 1024
+let array_length = 64
 let empty = N0 { str = ""; lines = [||] }
 let of_string string = N0 { str = string; lines = count_line_breaks string }
 
@@ -337,7 +339,7 @@ let ins_n2_right left right =
 
 (* New string is before old. *)
 let ins_before ins_string old_string old_lines =
-  if String.length old_string + String.length ins_string <= target_length then
+  if String.length old_string + String.length ins_string <= string_length then
     let old_lines =
       Array.map (fun x -> x + String.length ins_string) old_lines
     in
@@ -358,7 +360,7 @@ let ins_before ins_string old_string old_lines =
 
 (* New string is after old. *)
 let ins_after ins_string old_string old_lines =
-  if String.length old_string + String.length ins_string <= target_length then
+  if String.length old_string + String.length ins_string <= string_length then
     let lines =
       Array.append old_lines
         (count_line_breaks_increment ins_string (String.length old_string))
@@ -381,30 +383,35 @@ let ins_middle ins_string old_string old_lines cur_index =
   let sub2 =
     String.sub old_string cur_index (String.length old_string - cur_index)
   in
-  if String.length old_string + String.length ins_string <= target_length then
+  let ins_lines = count_line_breaks ins_string in
+  if
+    String.length old_string + String.length ins_string <= string_length
+    && Array.length old_lines + Array.length ins_lines <= array_length
+  then
     let _ = map (fun x -> x + String.length ins_string) sub2_lines in
+    let _ = map (fun x -> x + String.length sub1) ins_lines in
     let lines =
-      let ins_lines =
-        count_line_breaks_increment ins_string (String.length sub1)
-      in
       let start = Array.append sub1_lines ins_lines in
       Array.append start sub2_lines
     in
     N0 { str = sub1 ^ ins_string ^ sub2; lines }
-  else if String.length sub1 + String.length ins_string <= target_length then
-    let ins_lines =
-      count_line_breaks_increment ins_string (String.length sub1)
-    in
+  else if
+    String.length sub1 + String.length ins_string <= string_length
+    && Array.length sub1_lines + Array.length ins_lines <= array_length
+  then
+    let _ = map (fun x -> x + String.length sub1) ins_lines in
     let s1_lines = Array.append sub1_lines ins_lines in
     let _ = map (fun x -> x - String.length sub1) sub2_lines in
     L2 { s1 = sub1 ^ ins_string; s1_lines; s2 = sub2; s2_lines = sub2_lines }
-  else if String.length sub2 + String.length ins_string <= target_length then
+  else if
+    String.length sub2 + String.length ins_string <= string_length
+    && Array.length sub2_lines + Array.length ins_lines <= array_length
+  then
     let _ =
       map
         (fun x -> x - String.length sub1 + String.length ins_string)
         sub2_lines
     in
-    let ins_lines = count_line_breaks ins_string in
     L2
       {
         s1 = sub1;
@@ -459,7 +466,10 @@ let rec del_internal start_idx end_idx = function
         let sub1_lines = take_while_less_than difference lines 0 in
         (* Raw, unedited array; sub2 may need to be mapped below.*)
         let sub2_lines = skip_while_less_than end_idx lines 0 in
-        if String.length sub1 + String.length sub2 <= target_length then
+        if
+          String.length sub1 + String.length sub2 <= string_length
+          && Array.length sub1_lines + Array.length sub2_lines <= array_length
+        then
           let sub2_lines = map (fun x -> x - difference) lines in
           ( N0 { str = sub1 ^ sub2; lines = Array.append sub1_lines sub2_lines },
             false )
