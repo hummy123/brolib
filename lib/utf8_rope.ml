@@ -6,6 +6,16 @@ let rec count_line_breaks str u8_pos acc prev_is_cr =
       count_line_breaks str (u8_pos + 1) (u8_pos :: acc) (chr = '\r')
     else count_line_breaks str (u8_pos + 1) acc false
 
+let rec count_line_breaks_increment str u8_pos acc prev_is_cr increment_by =
+  if u8_pos = String.length str then List.rev acc |> Array.of_list
+  else
+    let chr = String.unsafe_get str u8_pos in
+    if chr = '\r' || (chr = '\n' && not prev_is_cr) then
+      count_line_breaks_increment str (u8_pos + 1)
+        ((u8_pos + increment_by) :: acc)
+        (chr = '\r') increment_by
+    else count_line_breaks_increment str (u8_pos + 1) acc false increment_by
+
 let take_while (predicate : int -> bool) lines =
   let len = Array.length lines in
   let rec take n =
@@ -15,6 +25,12 @@ let take_while (predicate : int -> bool) lines =
   in
   take 0
 
+let rec take_while_less_than (less_than : int) lines pos =
+  if pos = Array.length lines then lines
+  else if Array.unsafe_get lines pos < less_than then
+    take_while_less_than less_than lines (pos + 1)
+  else Array.sub lines 0 pos
+
 let skip_while predicate lines =
   let len = Array.length lines in
   let rec skip n =
@@ -23,6 +39,12 @@ let skip_while predicate lines =
     else Array.sub lines n (len - n)
   in
   skip 0
+
+let rec skip_while_less_than (less_than : int) lines pos =
+  if pos = Array.length lines then lines
+  else if Array.unsafe_get lines pos < less_than then
+    skip_while_less_than less_than lines (pos + 1)
+  else Array.sub lines pos (Array.length lines - pos)
 
 type rope =
   | N0 of { str : string; lines : int array }
@@ -316,77 +338,115 @@ let ins_n2_right left right =
       let rm, rm_lines = size r in
       N2 { l; lm; lm_lines; rm; rm_lines; r }
 
-let rec ins cur_index string = function
-  | N0 { str; lines } ->
-      let ins_lines = count_line_breaks string 0 [] false in
-      if cur_index <= 0 then
-        if String.length str + String.length string <= target_length then
-          let lines =
-            Array.map (fun pos -> pos + String.length string) lines
-            |> Array.append ins_lines
-          in
-          N0 { str = string ^ str; lines }
-        else
-          L2 { s1 = string; s1_lines = ins_lines; s2 = str; s2_lines = lines }
-      else if cur_index >= String.length str then
-        if String.length str + String.length string <= target_length then
-          let lines =
-            Array.map (fun pos -> pos + String.length str) ins_lines
-            |> Array.append lines
-          in
-          N0 { str = str ^ string; lines }
-        else
-          L2 { s1 = str; s1_lines = lines; s2 = string; s2_lines = ins_lines }
-      else
-        let sub1 = String.sub str 0 cur_index in
-        let sub1_lines = take_while (fun x -> x < String.length sub1) lines in
-        let sub2 = String.sub str cur_index (String.length str - cur_index) in
-        let sub2_lines =
-          skip_while (fun x -> x < String.length sub1) lines
-          |> Array.map (fun x -> x + String.length string)
-        in
-        let ins_lines = Array.map (fun x -> x + String.length sub1) ins_lines in
-        if String.length str + String.length string <= target_length then
-          let lines =
-            Array.append (Array.append sub1_lines ins_lines) sub2_lines
-          in
-          N0 { str = sub1 ^ string ^ sub2; lines }
-        else if String.length sub1 + String.length string <= target_length then
-          let ins_lines =
-            Array.map (fun x -> x + String.length sub1) ins_lines
-          in
-          let left_lines = Array.append sub1_lines ins_lines in
-          let right_lines =
-            Array.map (fun x -> x - String.length sub1) sub2_lines
-          in
-          L2
-            {
-              s1 = sub1 ^ string;
-              s1_lines = left_lines;
-              s2 = sub2;
-              s2_lines = right_lines;
-            }
-        else if String.length sub2 + String.length string <= target_length then
-          let s2_lines =
-            Array.append ins_lines
-              (Array.map
-                 (fun x -> x - String.length sub1 + String.length string)
-                 sub2_lines)
-          in
-          L2 { s1 = sub1; s1_lines = sub1_lines; s2 = string ^ sub2; s2_lines }
-        else
-          (* String must be split into 3 different parts. *)
-          let sub2_lines =
-            Array.map (fun x -> x - String.length sub1) sub2_lines
-          in
-          N3
-            ( N0 { str = sub1; lines = sub1_lines },
-              N0 { str = string; lines = ins_lines },
-              N0 { str = sub2; lines = sub2_lines } )
-  | N1 t -> n1 (ins cur_index string t)
+(* Since insertion logic can be complex due to storing line array,
+   have small functions for handling different N0 insertion cases. *)
+
+(* New string is before old. *)
+let ins_before ins_string old_string old_lines =
+  if String.length old_string + String.length ins_string <= target_length then
+    let old_lines =
+      Array.map (fun x -> x + String.length ins_string) old_lines
+    in
+    let ins_lines = count_line_breaks ins_string 0 [] false in
+    N0
+      {
+        str = ins_string ^ old_string;
+        lines = Array.append ins_lines old_lines;
+      }
+  else
+    L2
+      {
+        s1 = ins_string;
+        s1_lines = count_line_breaks ins_string 0 [] false;
+        s2 = old_string;
+        s2_lines = old_lines;
+      }
+
+(* New string is after old. *)
+let ins_after ins_string old_string old_lines =
+  if String.length old_string + String.length ins_string <= target_length then
+    let lines =
+      Array.append old_lines
+        (count_line_breaks_increment ins_string 0 [] false
+           (String.length old_string))
+    in
+    N0 { str = old_string ^ ins_string; lines }
+  else
+    L2
+      {
+        s1 = old_string;
+        s1_lines = old_lines;
+        s2 = ins_string;
+        s2_lines = count_line_breaks ins_string 0 [] false;
+      }
+
+let ins_middle ins_string old_string old_lines cur_index =
+  let sub1 = String.sub old_string 0 cur_index in
+  (* Line variables are "raw" and unedited from original array; may need to be modified in below if-statement. *)
+  let sub1_lines = take_while_less_than (String.length sub1) old_lines 0 in
+  let sub2_lines = skip_while_less_than (String.length sub1) old_lines 0 in
+  let sub2 =
+    String.sub old_string cur_index (String.length old_string - cur_index)
+  in
+  if String.length old_string + String.length ins_string <= target_length then
+    let lines =
+      let sub2_lines =
+        Array.map (fun x -> x + String.length ins_string) sub2_lines
+      in
+      let ins_lines =
+        count_line_breaks_increment ins_string 0 [] false (String.length sub1)
+      in
+      let start = Array.append sub1_lines ins_lines in
+      Array.append start sub2_lines
+    in
+    N0 { str = sub1 ^ ins_string ^ sub2; lines }
+  else if String.length sub1 + String.length ins_string <= target_length then
+    let ins_lines =
+      count_line_breaks_increment ins_string 0 [] false (String.length sub1)
+    in
+    let s1_lines = Array.append sub1_lines ins_lines in
+    L2
+      {
+        s1 = sub1 ^ ins_string;
+        s1_lines;
+        s2 = sub2;
+        s2_lines = Array.map (fun x -> x - String.length sub1) sub2_lines;
+      }
+  else if String.length sub2 + String.length ins_string <= target_length then
+    let sub2_lines =
+      Array.map
+        (fun x -> x - String.length sub1 + String.length ins_string)
+        sub2_lines
+    in
+    let ins_lines = count_line_breaks ins_string 0 [] false in
+    L2
+      {
+        s1 = sub1;
+        s1_lines = sub1_lines;
+        s2 = ins_string ^ sub2;
+        s2_lines = Array.append ins_lines sub2_lines;
+      }
+  else
+    (* String must be split into 3 different parts. *)
+    N3
+      ( N0 { str = sub1; lines = sub1_lines },
+        N0 { str = ins_string; lines = count_line_breaks ins_string 0 [] false },
+        N0
+          {
+            str = sub2;
+            lines = Array.map (fun x -> x - String.length sub1) sub2_lines;
+          } )
+
+let rec ins cur_index ins_string = function
+  | N0 { str = old_string; lines } ->
+      if cur_index <= 0 then ins_before ins_string old_string lines
+      else if cur_index >= String.length old_string then
+        ins_after ins_string old_string lines
+      else ins_middle ins_string old_string lines cur_index
+  | N1 t -> n1 (ins cur_index ins_string t)
   | N2 { l; lm; r; _ } ->
-      if cur_index < lm then ins_n2_left (ins cur_index string l) r
-      else ins_n2_right l (ins (cur_index - lm) string r)
+      if cur_index < lm then ins_n2_left (ins cur_index ins_string l) r
+      else ins_n2_right l (ins (cur_index - lm) ins_string r)
   | _ -> failwith ""
 
 let insert index string rope = root (ins index string rope)
