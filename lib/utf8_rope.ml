@@ -461,38 +461,66 @@ let insert index string rope = root (ins index string rope)
     We propagate a boolean indicating if this happened, and call the insert rebalancing operations if it did.
 *)
 let rec del_internal start_idx end_idx = function
-  | N0 str ->
+  | N0 { str; lines } ->
       if start_idx <= 0 && end_idx >= String.length str then
         (* In range. *)
-        (N0 "", false)
+        (empty, false)
       else if start_idx >= 0 && end_idx <= String.length str then
         (* In middle of this node. *)
+        let difference = end_idx - start_idx in
         let sub1 = String.sub str 0 start_idx in
         let sub2 = String.sub str end_idx (String.length str - end_idx) in
+        let sub1_lines = take_while_less_than difference lines 0 in
+        (* Raw, unedited array; sub2 may need to be mapped below.*)
+        let sub2_lines = skip_while_less_than end_idx lines 0 in
         if String.length sub1 + String.length sub2 <= target_length then
-          (N0 (sub1 ^ sub2), false)
-        else (L2 (sub1, sub2), true)
+          let sub2_lines = Array.map (fun x -> x - difference) lines in
+          ( N0 { str = sub1 ^ sub2; lines = Array.append sub1_lines sub2_lines },
+            false )
+        else
+          let sub2_lines =
+            Array.map
+              (fun x -> x - (String.length sub1 + difference))
+              sub2_lines
+          in
+          ( L2
+              {
+                s1 = sub1;
+                s1_lines = sub1_lines;
+                s2 = sub2;
+                s2_lines = sub2_lines;
+              },
+            true )
       else if start_idx >= 0 && end_idx >= String.length str then
         (* Starts at this node. *)
         let str = String.sub str 0 start_idx in
-        (N0 str, false)
+        (N0 { str; lines = take_while_less_than start_idx lines 0 }, false)
       else
         (* Ends at this node. *)
         let str = String.sub str end_idx (String.length str - end_idx) in
-        (N0 str, false)
+        let lines =
+          skip_while_less_than end_idx lines 0
+          |> Array.map (fun x -> x - end_idx)
+        in
+        (*   |> Array.map (fun x -> x - end_idx) *)
+        (N0 { str; lines }, false)
   | N1 t ->
       let t, did_ins = del_internal start_idx end_idx t in
       if did_ins then (n1 t, true) else (N1 t, false)
-  | N2 { l; lm; rm; r } ->
+  | N2 { l; lm; lm_lines; rm; rm_lines; r } ->
       if lm > start_idx && lm > end_idx then
         let l, did_ins = del_internal start_idx end_idx l in
         match did_ins with
-        | false -> (N2 { l; lm = size l; rm; r }, false)
+        | false ->
+            let lm, lm_lines = size l in
+            (N2 { l; lm; lm_lines; rm; rm_lines; r }, false)
         | true -> (ins_n2_left l r, true)
       else if lm < start_idx && lm < end_idx then
         let r, did_ins = del_internal (start_idx - lm) (end_idx - lm) r in
         match did_ins with
-        | false -> (N2 { l; lm; rm = size r; r }, false)
+        | false ->
+            let rm, rm_lines = size r in
+            (N2 { l; lm; lm_lines; rm; rm_lines; r }, false)
         | true -> (ins_n2_right l r, true)
       else
         (* It is only possible for did_ins to be true for one side as it only happens when deleting at the middle of a node. *)
@@ -500,7 +528,10 @@ let rec del_internal start_idx end_idx = function
         let l, did_ins_l = del_internal start_idx end_idx l in
         if did_ins_l then (ins_n2_left l r, true)
         else if did_ins_r then (ins_n2_right l r, true)
-        else (N2 { l; lm = size l; rm = size r; r }, false)
+        else
+          let lm, lm_lines = size l in
+          let rm, rm_lines = size r in
+          (N2 { l; lm; lm_lines; rm; rm_lines; r }, false)
   | _ -> failwith ""
 
 let delete start length rope =
@@ -508,7 +539,7 @@ let delete start length rope =
   if did_ins then root rope else rope
 
 let rec sub_internal start_idx end_idx acc = function
-  | N0 str ->
+  | N0 { str; _ } ->
       if start_idx <= 0 && end_idx >= String.length str then
         (* In range. *)
         str :: acc
@@ -550,8 +581,7 @@ let sub start length rope =
 (*   sub_lines_internal start (start + num_of_lines) [] rope |> String.concat "" *)
 
 let rec fold f state = function
-  | N0 "" -> state
-  | N0 str -> f state str
+  | N0 { str; _ } -> if str = "" then state else f state str
   | N1 t -> fold f state t
   | N2 { l; r; _ } ->
       let state = fold f state l in
@@ -559,8 +589,7 @@ let rec fold f state = function
   | _ -> failwith ""
 
 let rec fold_back f state = function
-  | N0 "" -> state
-  | N0 str -> f state str
+  | N0 { str; _ } -> if str = "" then state else f state str
   | N1 t -> fold_back f state t
   | N2 { l; r; _ } ->
       let state = fold_back f state r in
