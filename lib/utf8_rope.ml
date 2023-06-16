@@ -16,35 +16,29 @@ let rec count_line_breaks_increment str u8_pos acc prev_is_cr increment_by =
         (chr = '\r') increment_by
     else count_line_breaks_increment str (u8_pos + 1) acc false increment_by
 
-let take_while (predicate : int -> bool) lines =
-  let len = Array.length lines in
-  let rec take n =
-    if n >= len then lines
-    else if predicate (Array.unsafe_get lines n) then take (n + 1)
-    else Array.sub lines 0 n
-  in
-  take 0
-
 let rec take_while_less_than (less_than : int) lines pos =
   if pos = Array.length lines then lines
   else if Array.unsafe_get lines pos < less_than then
     take_while_less_than less_than lines (pos + 1)
   else Array.sub lines 0 pos
 
-let skip_while predicate lines =
-  let len = Array.length lines in
-  let rec skip n =
-    if n >= len then [||]
-    else if predicate (Array.unsafe_get lines n) then skip (n + 1)
-    else Array.sub lines n (len - n)
-  in
-  skip 0
-
 let rec skip_while_less_than (less_than : int) lines pos =
   if pos = Array.length lines then lines
   else if Array.unsafe_get lines pos < less_than then
     skip_while_less_than less_than lines (pos + 1)
   else Array.sub lines pos (Array.length lines - pos)
+
+(* Like Array.map, but mutable.
+   To keep the structure's data immutable, we only use Array.map
+   when an array iwas previously (like with Array.sub or Array.copy). *)
+let rec map_internal (f : int -> int) lines (pos : int) =
+  if pos = Array.length lines then lines
+  else
+    let num = Array.unsafe_get lines pos in
+    Array.unsafe_set lines pos (f num);
+    map_internal f lines (pos + 1)
+
+let rec map f lines = map_internal f lines 0
 
 type rope =
   | N0 of { str : string; lines : int array }
@@ -389,10 +383,8 @@ let ins_middle ins_string old_string old_lines cur_index =
     String.sub old_string cur_index (String.length old_string - cur_index)
   in
   if String.length old_string + String.length ins_string <= target_length then
+    let _ = map (fun x -> x + String.length ins_string) sub2_lines in
     let lines =
-      let sub2_lines =
-        Array.map (fun x -> x + String.length ins_string) sub2_lines
-      in
       let ins_lines =
         count_line_breaks_increment ins_string 0 [] false (String.length sub1)
       in
@@ -405,16 +397,11 @@ let ins_middle ins_string old_string old_lines cur_index =
       count_line_breaks_increment ins_string 0 [] false (String.length sub1)
     in
     let s1_lines = Array.append sub1_lines ins_lines in
-    L2
-      {
-        s1 = sub1 ^ ins_string;
-        s1_lines;
-        s2 = sub2;
-        s2_lines = Array.map (fun x -> x - String.length sub1) sub2_lines;
-      }
+    let _ = map (fun x -> x - String.length sub1) sub2_lines in
+    L2 { s1 = sub1 ^ ins_string; s1_lines; s2 = sub2; s2_lines = sub2_lines }
   else if String.length sub2 + String.length ins_string <= target_length then
-    let sub2_lines =
-      Array.map
+    let _ =
+      map
         (fun x -> x - String.length sub1 + String.length ins_string)
         sub2_lines
     in
@@ -434,7 +421,7 @@ let ins_middle ins_string old_string old_lines cur_index =
         N0
           {
             str = sub2;
-            lines = Array.map (fun x -> x - String.length sub1) sub2_lines;
+            lines = map (fun x -> x - String.length sub1) sub2_lines;
           } )
 
 let rec ins cur_index ins_string = function
@@ -474,14 +461,12 @@ let rec del_internal start_idx end_idx = function
         (* Raw, unedited array; sub2 may need to be mapped below.*)
         let sub2_lines = skip_while_less_than end_idx lines 0 in
         if String.length sub1 + String.length sub2 <= target_length then
-          let sub2_lines = Array.map (fun x -> x - difference) lines in
+          let sub2_lines = map (fun x -> x - difference) lines in
           ( N0 { str = sub1 ^ sub2; lines = Array.append sub1_lines sub2_lines },
             false )
         else
           let sub2_lines =
-            Array.map
-              (fun x -> x - (String.length sub1 + difference))
-              sub2_lines
+            map (fun x -> x - (String.length sub1 + difference)) sub2_lines
           in
           ( L2
               {
@@ -499,10 +484,8 @@ let rec del_internal start_idx end_idx = function
         (* Ends at this node. *)
         let str = String.sub str end_idx (String.length str - end_idx) in
         let lines =
-          skip_while_less_than end_idx lines 0
-          |> Array.map (fun x -> x - end_idx)
+          skip_while_less_than end_idx lines 0 |> map (fun x -> x - end_idx)
         in
-        (*   |> Array.map (fun x -> x - end_idx) *)
         (N0 { str; lines }, false)
   | N1 t ->
       let t, did_ins = del_internal start_idx end_idx t in
