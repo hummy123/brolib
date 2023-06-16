@@ -87,7 +87,7 @@ type t = rope
    but we don't build any strings longer than that ourselves.
    The target_length has performance implications and 1024 seems like a good size from benchmarks. *)
 let string_length = 1024
-let array_length = 64
+let array_length = 128
 let empty = N0 { str = ""; lines = [||] }
 let of_string string = N0 { str = string; lines = count_line_breaks string }
 
@@ -495,7 +495,10 @@ let rec del_internal start_idx end_idx = function
         in
         let sub1_lines = sub_before (String.length sub1) mid_point lines in
         let sub2_lines = sub_after (String.length sub1) mid_point lines in
-        if String.length sub1 + String.length sub2 <= string_length then
+        if
+          String.length sub1 + String.length sub2 <= string_length
+          && Array.length sub1_lines + Array.length sub2_lines <= array_length
+        then
           let sub2_lines = map (fun x -> x - difference) lines in
           ( N0 { str = sub1 ^ sub2; lines = Array.append sub1_lines sub2_lines },
             false )
