@@ -1,20 +1,24 @@
-let rec count_line_breaks str u8_pos acc prev_is_cr =
+let rec count_line_breaks ?(u8_pos = 0) ?(acc = []) ?(prev_is_cr = false) str =
   if u8_pos = String.length str then List.rev acc |> Array.of_list
   else
     let chr = String.unsafe_get str u8_pos in
     if chr = '\r' || (chr = '\n' && not prev_is_cr) then
-      count_line_breaks str (u8_pos + 1) (u8_pos :: acc) (chr = '\r')
-    else count_line_breaks str (u8_pos + 1) acc false
+      count_line_breaks ~u8_pos:(u8_pos + 1) ~acc:(u8_pos :: acc)
+        ~prev_is_cr:(chr = '\r') str
+    else count_line_breaks ~u8_pos:(u8_pos + 1) ~acc ~prev_is_cr:false str
 
-let rec count_line_breaks_increment str u8_pos acc prev_is_cr increment_by =
+let rec count_line_breaks_increment ?(u8_pos = 0) ?(acc = [])
+    ?(prev_is_cr = false) str increment_by =
   if u8_pos = String.length str then List.rev acc |> Array.of_list
   else
     let chr = String.unsafe_get str u8_pos in
     if chr = '\r' || (chr = '\n' && not prev_is_cr) then
-      count_line_breaks_increment str (u8_pos + 1)
-        ((u8_pos + increment_by) :: acc)
-        (chr = '\r') increment_by
-    else count_line_breaks_increment str (u8_pos + 1) acc false increment_by
+      count_line_breaks_increment ~u8_pos:(u8_pos + 1)
+        ~acc:((u8_pos + increment_by) :: acc)
+        ~prev_is_cr:(chr = '\r') str increment_by
+    else
+      count_line_breaks_increment ~u8_pos:(u8_pos + 1) ~acc ~prev_is_cr:false
+        str increment_by
 
 let rec take_while_less_than (less_than : int) lines pos =
   if pos = Array.length lines then lines
@@ -31,14 +35,12 @@ let rec skip_while_less_than (less_than : int) lines pos =
 (* Like Array.map, but mutable.
    To keep the structure's data immutable, we only use Array.map
    when an array iwas previously (like with Array.sub or Array.copy). *)
-let rec map_internal (f : int -> int) lines (pos : int) =
+let rec map ?(pos = 0) (f : int -> int) lines =
   if pos = Array.length lines then lines
   else
     let num = Array.unsafe_get lines pos in
     Array.unsafe_set lines pos (f num);
-    map_internal f lines (pos + 1)
-
-let rec map f lines = map_internal f lines 0
+    map f lines ~pos:(pos + 1)
 
 type rope =
   | N0 of { str : string; lines : int array }
@@ -67,9 +69,7 @@ type t = rope
    The target_length has performance implications and 1024 seems like a good size from benchmarks. *)
 let target_length = 1024
 let empty = N0 { str = ""; lines = [||] }
-
-let of_string string =
-  N0 { str = string; lines = count_line_breaks string 0 [] false }
+let of_string string = N0 { str = string; lines = count_line_breaks string }
 
 let rec size = function
   | N0 s -> (String.length s.str, Array.length s.lines)
@@ -341,7 +341,7 @@ let ins_before ins_string old_string old_lines =
     let old_lines =
       Array.map (fun x -> x + String.length ins_string) old_lines
     in
-    let ins_lines = count_line_breaks ins_string 0 [] false in
+    let ins_lines = count_line_breaks ins_string in
     N0
       {
         str = ins_string ^ old_string;
@@ -351,7 +351,7 @@ let ins_before ins_string old_string old_lines =
     L2
       {
         s1 = ins_string;
-        s1_lines = count_line_breaks ins_string 0 [] false;
+        s1_lines = count_line_breaks ins_string;
         s2 = old_string;
         s2_lines = old_lines;
       }
@@ -361,8 +361,7 @@ let ins_after ins_string old_string old_lines =
   if String.length old_string + String.length ins_string <= target_length then
     let lines =
       Array.append old_lines
-        (count_line_breaks_increment ins_string 0 [] false
-           (String.length old_string))
+        (count_line_breaks_increment ins_string (String.length old_string))
     in
     N0 { str = old_string ^ ins_string; lines }
   else
@@ -371,7 +370,7 @@ let ins_after ins_string old_string old_lines =
         s1 = old_string;
         s1_lines = old_lines;
         s2 = ins_string;
-        s2_lines = count_line_breaks ins_string 0 [] false;
+        s2_lines = count_line_breaks ins_string;
       }
 
 let ins_middle ins_string old_string old_lines cur_index =
@@ -386,7 +385,7 @@ let ins_middle ins_string old_string old_lines cur_index =
     let _ = map (fun x -> x + String.length ins_string) sub2_lines in
     let lines =
       let ins_lines =
-        count_line_breaks_increment ins_string 0 [] false (String.length sub1)
+        count_line_breaks_increment ins_string (String.length sub1)
       in
       let start = Array.append sub1_lines ins_lines in
       Array.append start sub2_lines
@@ -394,7 +393,7 @@ let ins_middle ins_string old_string old_lines cur_index =
     N0 { str = sub1 ^ ins_string ^ sub2; lines }
   else if String.length sub1 + String.length ins_string <= target_length then
     let ins_lines =
-      count_line_breaks_increment ins_string 0 [] false (String.length sub1)
+      count_line_breaks_increment ins_string (String.length sub1)
     in
     let s1_lines = Array.append sub1_lines ins_lines in
     let _ = map (fun x -> x - String.length sub1) sub2_lines in
@@ -405,7 +404,7 @@ let ins_middle ins_string old_string old_lines cur_index =
         (fun x -> x - String.length sub1 + String.length ins_string)
         sub2_lines
     in
-    let ins_lines = count_line_breaks ins_string 0 [] false in
+    let ins_lines = count_line_breaks ins_string in
     L2
       {
         s1 = sub1;
@@ -417,7 +416,7 @@ let ins_middle ins_string old_string old_lines cur_index =
     (* String must be split into 3 different parts. *)
     N3
       ( N0 { str = sub1; lines = sub1_lines },
-        N0 { str = ins_string; lines = count_line_breaks ins_string 0 [] false },
+        N0 { str = ins_string; lines = count_line_breaks ins_string },
         N0
           {
             str = sub2;
