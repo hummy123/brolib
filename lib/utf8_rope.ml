@@ -49,7 +49,7 @@ let sub_after not_less_than mid_point lines =
     else if mid_point = 0 then if mid_val >= not_less_than then lines else [||]
     else if mid_val >= not_less_than then
       Array.sub lines mid_point (Array.length lines - mid_point)
-    else Array.sub lines 0 1
+    else Array.sub lines (mid_point + 1) (Array.length lines - (mid_point + 1))
 
 (* Like Array.map, but mutable.
    To keep the structure's data immutable, we only use Array.map
