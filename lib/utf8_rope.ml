@@ -1,15 +1,3 @@
-(*Debug func*)
-let debug_lines str lines =
-  Array.fold_left
-    (fun _ el ->
-      let chr = String.get str el in
-      if chr = '\r' || chr = '\n' then ()
-      else (
-        Printf.printf "pos: %i\n" el;
-        Printf.printf "strlengt: %i\n" (String.length str);
-        Printf.printf "chr: %s\n" (Char.escaped chr)))
-    () lines
-
 (* Functions for manipulating line break arrays. *)
 let rec count_line_breaks ?(u8_pos = 0) ?(acc = []) ?(prev_is_cr = false) str =
   if u8_pos = String.length str then List.rev acc |> Array.of_list
@@ -472,7 +460,7 @@ let rec del_internal start_idx end_idx = function
       if start_idx <= 0 && end_idx >= String.length str then
         (* In range. *)
         (empty, false)
-      else if start_idx >= 0 && end_idx <= String.length str then (
+      else if start_idx >= 0 && end_idx <= String.length str then
         (* In middle of this node. *)
         let sub1 = String.sub str 0 start_idx in
         let sub2 = String.sub str end_idx (String.length str - end_idx) in
@@ -487,14 +475,10 @@ let rec del_internal start_idx end_idx = function
         if
           String.length sub1 + String.length sub2 <= string_length
           && Array.length sub1_lines + Array.length sub2_lines <= array_length
-        then (
+        then
           let sub2_lines = map (fun x -> x - difference) sub2_lines in
-          Printf.printf "1\n";
-          (* Printf.printf "\nstrt: %i\n" start_idx; *)
-          (* Printf.printf "fins: %i\n" end_idx; *)
-          (* Printf.printf "diff: %i\n" difference; *)
           ( N0 { str = sub1 ^ sub2; lines = Array.append sub1_lines sub2_lines },
-            false ))
+            false )
         else
           let sub2_lines =
             map
@@ -503,7 +487,6 @@ let rec del_internal start_idx end_idx = function
                 else x)
               sub2_lines
           in
-          Printf.printf "2\n";
           ( L2
               {
                 s1 = sub1;
@@ -511,23 +494,21 @@ let rec del_internal start_idx end_idx = function
                 s2 = sub2;
                 s2_lines = sub2_lines;
               },
-            true ))
-      else if start_idx >= 0 && end_idx >= String.length str then (
+            true )
+      else if start_idx >= 0 && end_idx >= String.length str then
         (* Starts at this node. *)
         let str = String.sub str 0 start_idx in
         let mid_point =
           split_lines start_idx lines 0 (Array.length lines - 1)
         in
         let lines = sub_before (String.length str) mid_point lines in
-        Printf.printf "3\n";
-        (N0 { str; lines }, false))
+        (N0 { str; lines }, false)
       else
         (* Ends at this node. *)
         let str = String.sub str end_idx (String.length str - end_idx) in
         let mid_point = split_lines end_idx lines 0 (Array.length lines - 1) in
         let lines = sub_after end_idx mid_point lines in
         let _ = map (fun x -> x - end_idx) lines in
-        Printf.printf "4\n";
         (N0 { str; lines }, false)
   | N1 t ->
       let t, did_ins = del_internal start_idx end_idx t in
