@@ -12,6 +12,10 @@ let line_break_at_expected rope =
       else (
         Printf.printf "line: %i\n" (Array.length lines);
         Printf.printf "real: %i\n" (Array.length real);
+        Printf.printf "line\n";
+        let _ = Array.map (fun x -> Printf.printf "%i\n" x) lines in
+        Printf.printf "real\n";
+        let _ = Array.map (fun x -> Printf.printf "%i\n" x) real in
         Array.iter2
           (fun opt real ->
             Printf.printf "line: %i\n" opt;

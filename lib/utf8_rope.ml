@@ -474,15 +474,16 @@ let rec del_internal start_idx end_idx = function
         (empty, false)
       else if start_idx >= 0 && end_idx <= String.length str then
         (* In middle of this node. *)
-        let difference = end_idx - start_idx in
         let sub1 = String.sub str 0 start_idx in
         let sub2 = String.sub str end_idx (String.length str - end_idx) in
         (* Raw, unedited array; sub2 may need to be mapped below.*)
-        let mid_point =
-          split_lines difference lines 0 (Array.length lines - 1)
+        let difference = end_idx - start_idx in
+        let start_point =
+          split_lines start_idx lines 0 (Array.length lines - 1)
         in
-        let sub1_lines = sub_before (String.length sub1) mid_point lines in
-        let sub2_lines = sub_after (String.length sub1) mid_point lines in
+        let sub1_lines = sub_before (String.length sub1) start_point lines in
+        let end_point = split_lines end_idx lines 0 (Array.length lines - 1) in
+        let sub2_lines = sub_after (String.length sub1) end_point lines in
         if
           String.length sub1 + String.length sub2 <= string_length
           && Array.length sub1_lines + Array.length sub2_lines <= array_length
