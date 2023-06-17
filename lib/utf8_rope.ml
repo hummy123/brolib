@@ -8,19 +8,6 @@ let rec count_line_breaks ?(u8_pos = 0) ?(acc = []) ?(prev_is_cr = false) str =
         ~prev_is_cr:(chr = '\r') str
     else count_line_breaks ~u8_pos:(u8_pos + 1) ~acc ~prev_is_cr:false str
 
-let rec count_line_breaks_increment ?(u8_pos = 0) ?(acc = [])
-    ?(prev_is_cr = false) str increment_by =
-  if u8_pos = String.length str then List.rev acc |> Array.of_list
-  else
-    let chr = String.unsafe_get str u8_pos in
-    if chr = '\r' || (chr = '\n' && not prev_is_cr) then
-      count_line_breaks_increment ~u8_pos:(u8_pos + 1)
-        ~acc:((u8_pos + increment_by) :: acc)
-        ~prev_is_cr:(chr = '\r') str increment_by
-    else
-      count_line_breaks_increment ~u8_pos:(u8_pos + 1) ~acc ~prev_is_cr:false
-        str increment_by
-
 let rec split_lines (find_num : int) lines low high =
   if Array.length lines = 0 then 0
   else
@@ -32,24 +19,25 @@ let rec split_lines (find_num : int) lines low high =
       else split_lines find_num lines low (mid - 1)
     else mid
 
-let sub_before (less_than : int) mid_point lines =
-  if Array.length lines = 0 then [||]
-  else
-    let mid_val = Array.unsafe_get lines mid_point in
-    if mid_val < less_than then Array.sub lines 0 mid_point
-    else Array.sub lines 0 (max (mid_point - 1) 0)
+let sub_before (less_than : int) mid_point lines = [||]
+(* if Array.length lines = 0 then [||] *)
+(* else *)
+(*   let mid_val = Array.unsafe_get lines mid_point in *)
+(*   if mid_val < less_than then Array.sub lines 0 mid_point *)
+(*   else Array.sub lines 0 (max (mid_point - 1) 0) *)
 
-let sub_after not_less_than mid_point lines =
-  if Array.length lines = 0 then [||]
-  else if mid_point >= Array.length lines then [||]
-  else
-    let mid_val = Array.get lines mid_point in
-    if mid_point = Array.length lines - 1 then
-      if mid_val >= not_less_than then [| mid_val |] else [||]
-    else if mid_point = 0 then if mid_val >= not_less_than then lines else [||]
-    else if mid_val >= not_less_than then
-      Array.sub lines mid_point (Array.length lines - mid_point)
-    else Array.sub lines (mid_point + 1) (Array.length lines - (mid_point + 1))
+let sub_after not_less_than mid_point lines = [||]
+
+(* if Array.length lines = 0 then [||] *)
+(* else if mid_point >= Array.length lines then [||] *)
+(* else *)
+(*   let mid_val = Array.get lines mid_point in *)
+(*   if mid_point = Array.length lines - 1 then *)
+(*     if mid_val >= not_less_than then [| mid_val |] else [||] *)
+(*   else if mid_point = 0 then if mid_val >= not_less_than then lines else [||] *)
+(*   else if mid_val >= not_less_than then *)
+(*     Array.sub lines mid_point (Array.length lines - mid_point) *)
+(*   else Array.sub lines (mid_point + 1) (Array.length lines - (mid_point + 1)) *)
 
 (* Like Array.map, but mutable.
    To keep the structure's data immutable, we only use Array.map
@@ -499,7 +487,7 @@ let rec del_internal start_idx end_idx = function
           String.length sub1 + String.length sub2 <= string_length
           && Array.length sub1_lines + Array.length sub2_lines <= array_length
         then
-          let sub2_lines = map (fun x -> x - difference) lines in
+          let sub2_lines = map (fun x -> x - difference) sub2_lines in
           ( N0 { str = sub1 ^ sub2; lines = Array.append sub1_lines sub2_lines },
             false )
         else
@@ -605,7 +593,7 @@ let sub start length rope =
 (*   sub_lines_internal start (start + num_of_lines) [] rope |> String.concat "" *)
 
 let rec fold f state = function
-  | N0 { str; _ } -> if str = "" then state else f state str
+  | N0 { str; lines } -> if str = "" then state else f state str lines
   | N1 t -> fold f state t
   | N2 { l; r; _ } ->
       let state = fold f state l in
@@ -613,7 +601,7 @@ let rec fold f state = function
   | _ -> failwith ""
 
 let rec fold_back f state = function
-  | N0 { str; _ } -> if str = "" then state else f state str
+  | N0 { str; lines } -> if str = "" then state else f state str lines
   | N1 t -> fold_back f state t
   | N2 { l; r; _ } ->
       let state = fold_back f state r in
@@ -621,5 +609,5 @@ let rec fold_back f state = function
   | _ -> failwith ""
 
 let to_string rope =
-  let lst = fold_back (fun lst str -> str :: lst) [] rope in
+  let lst = fold_back (fun lst str _ -> str :: lst) [] rope in
   String.concat "" lst
