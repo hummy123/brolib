@@ -487,12 +487,20 @@ let rec del_internal start_idx end_idx = function
           String.length sub1 + String.length sub2 <= string_length
           && Array.length sub1_lines + Array.length sub2_lines <= array_length
         then
-          let sub2_lines = map (fun x -> x - difference) sub2_lines in
+          let sub2_lines =
+            map
+              (fun x -> if x >= start_idx then x - difference else x)
+              sub2_lines
+          in
           ( N0 { str = sub1 ^ sub2; lines = Array.append sub1_lines sub2_lines },
             false )
         else
           let sub2_lines =
-            map (fun x -> x - (String.length sub1 + difference)) sub2_lines
+            map
+              (fun x ->
+                if x >= start_idx then x - (String.length sub1 + difference)
+                else x)
+              sub2_lines
           in
           ( L2
               {
