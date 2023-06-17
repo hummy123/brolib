@@ -472,29 +472,29 @@ let rec del_internal start_idx end_idx = function
       if start_idx <= 0 && end_idx >= String.length str then
         (* In range. *)
         (empty, false)
-      else if start_idx >= 0 && end_idx <= String.length str then
+      else if start_idx >= 0 && end_idx <= String.length str then (
         (* In middle of this node. *)
         let sub1 = String.sub str 0 start_idx in
         let sub2 = String.sub str end_idx (String.length str - end_idx) in
         (* Raw, unedited array; sub2 may need to be mapped below.*)
-        let difference = end_idx - start_idx in
         let start_point =
           split_lines start_idx lines 0 (Array.length lines - 1)
         in
         let sub1_lines = sub_before (String.length sub1) start_point lines in
         let end_point = split_lines end_idx lines 0 (Array.length lines - 1) in
         let sub2_lines = sub_after (String.length sub1) end_point lines in
+        let difference = end_idx - start_idx in
         if
           String.length sub1 + String.length sub2 <= string_length
           && Array.length sub1_lines + Array.length sub2_lines <= array_length
-        then
-          let sub2_lines =
-            map
-              (fun x -> if x >= start_idx then x - difference else x)
-              sub2_lines
-          in
+        then (
+          let sub2_lines = map (fun x -> x - difference) sub2_lines in
+          Printf.printf "1\n";
+          (* Printf.printf "\nstrt: %i\n" start_idx; *)
+          (* Printf.printf "fins: %i\n" end_idx; *)
+          (* Printf.printf "diff: %i\n" difference; *)
           ( N0 { str = sub1 ^ sub2; lines = Array.append sub1_lines sub2_lines },
-            false )
+            false ))
         else
           let sub2_lines =
             map
@@ -503,6 +503,7 @@ let rec del_internal start_idx end_idx = function
                 else x)
               sub2_lines
           in
+          Printf.printf "2\n";
           ( L2
               {
                 s1 = sub1;
@@ -510,20 +511,23 @@ let rec del_internal start_idx end_idx = function
                 s2 = sub2;
                 s2_lines = sub2_lines;
               },
-            true )
-      else if start_idx >= 0 && end_idx >= String.length str then
+            true ))
+      else if start_idx >= 0 && end_idx >= String.length str then (
         (* Starts at this node. *)
         let str = String.sub str 0 start_idx in
         let mid_point =
           split_lines start_idx lines 0 (Array.length lines - 1)
         in
         let lines = sub_before (String.length str) mid_point lines in
-        (N0 { str; lines }, false)
+        Printf.printf "3\n";
+        (N0 { str; lines }, false))
       else
         (* Ends at this node. *)
         let str = String.sub str end_idx (String.length str - end_idx) in
         let mid_point = split_lines end_idx lines 0 (Array.length lines - 1) in
         let lines = sub_after end_idx mid_point lines in
+        let _ = map (fun x -> x - end_idx) lines in
+        Printf.printf "4\n";
         (N0 { str; lines }, false)
   | N1 t ->
       let t, did_ins = del_internal start_idx end_idx t in
