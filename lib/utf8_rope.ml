@@ -1,3 +1,15 @@
+(*Debug func*)
+let debug_lines str lines =
+  Array.fold_left
+    (fun _ el ->
+      let chr = String.get str el in
+      if chr = '\r' || chr = '\n' then ()
+      else (
+        Printf.printf "pos: %i\n" el;
+        Printf.printf "strlengt: %i\n" (String.length str);
+        Printf.printf "chr: %s\n" (Char.escaped chr)))
+    () lines
+
 (* Functions for manipulating line break arrays. *)
 let rec count_line_breaks ?(u8_pos = 0) ?(acc = []) ?(prev_is_cr = false) str =
   if u8_pos = String.length str then List.rev acc |> Array.of_list
@@ -20,24 +32,12 @@ let rec split_lines (find_num : int) lines low high =
     else mid
 
 let sub_before (less_than : int) mid_point lines =
+  if Array.length lines = 0 then [||] else Array.sub lines 0 mid_point
+
+let sub_after not_less_than mid_point lines =
   if Array.length lines = 0 then [||]
-  else
-    let mid_val = Array.unsafe_get lines mid_point in
-    if mid_val < less_than then Array.sub lines 0 mid_point
-    else Array.sub lines 0 (max (mid_point - 1) 0)
-
-let sub_after not_less_than mid_point lines = [||]
-
-(* if Array.length lines = 0 then [||] *)
-(* else if mid_point >= Array.length lines then [||] *)
-(* else *)
-(*   let mid_val = Array.get lines mid_point in *)
-(*   if mid_point = Array.length lines - 1 then *)
-(*     if mid_val >= not_less_than then [| mid_val |] else [||] *)
-(*   else if mid_point = 0 then if mid_val >= not_less_than then lines else [||] *)
-(*   else if mid_val >= not_less_than then *)
-(*     Array.sub lines mid_point (Array.length lines - mid_point) *)
-(*   else Array.sub lines (mid_point + 1) (Array.length lines - (mid_point + 1)) *)
+  else if mid_point >= Array.length lines then [||]
+  else Array.sub lines mid_point (Array.length lines - mid_point)
 
 (* Like Array.map, but mutable.
    To keep the structure's data immutable, we only use Array.map
