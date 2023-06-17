@@ -19,12 +19,12 @@ let rec split_lines (find_num : int) lines low high =
       else split_lines find_num lines low (mid - 1)
     else mid
 
-let sub_before (less_than : int) mid_point lines = [||]
-(* if Array.length lines = 0 then [||] *)
-(* else *)
-(*   let mid_val = Array.unsafe_get lines mid_point in *)
-(*   if mid_val < less_than then Array.sub lines 0 mid_point *)
-(*   else Array.sub lines 0 (max (mid_point - 1) 0) *)
+let sub_before (less_than : int) mid_point lines =
+  if Array.length lines = 0 then [||]
+  else
+    let mid_val = Array.unsafe_get lines mid_point in
+    if mid_val < less_than then Array.sub lines 0 mid_point
+    else Array.sub lines 0 (max (mid_point - 1) 0)
 
 let sub_after not_less_than mid_point lines = [||]
 

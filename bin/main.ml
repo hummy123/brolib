@@ -27,19 +27,21 @@ let () =
       rope_insert rope_delete
   in
   let _ = line_break_at_expected svelte in
-  (* let rust = *)
-  (*   Utils.run_txns_time "Rustcode Rope" Rustcode.data Utf8_rope.empty *)
-  (*     rope_insert rope_delete *)
-  (* in *)
-  (* let _ = line_break_at_expected rust in *)
-  (* let seph = *)
-  (*   Utils.run_txns_time "Sephblog Rope" Sephblog.data Utf8_rope.empty *)
-  (*     rope_insert rope_delete *)
-  (* in *)
-  (* let automerge = *)
-  (*   Utils.run_txns_time "Automerge Rope" Automerge.data Utf8_rope.empty *)
-  (*     rope_insert rope_delete *)
-  (* in *)
+  let rust =
+    Utils.run_txns_time "Rustcode Rope" Rustcode.data Utf8_rope.empty
+      rope_insert rope_delete
+  in
+  let _ = line_break_at_expected rust in
+  let seph =
+    Utils.run_txns_time "Sephblog Rope" Sephblog.data Utf8_rope.empty
+      rope_insert rope_delete
+  in
+  let _ = line_break_at_expected seph in
+  let automerge =
+    Utils.run_txns_time "Automerge Rope" Automerge.data Utf8_rope.empty
+      rope_insert rope_delete
+  in
+  let _ = line_break_at_expected automerge in
   (* Printf.printf "\n-\t Rope to_string \t-"; *)
   (* let _ = *)
   (*   Utils.run_to_string_time "Svelte to_string Rope" svelte rope_to_string *)
