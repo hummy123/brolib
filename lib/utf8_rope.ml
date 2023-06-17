@@ -579,12 +579,70 @@ let rec sub_internal start_idx end_idx acc = function
 let sub start length rope =
   sub_internal start (start + length) [] rope |> String.concat ""
 
-(* let sub_lines_internal start_line end_line acc = function *)
-(*   | N1 t -> sub_lines_internal start_line end_line acc t *)
-(*   | *)
+let rec sub_lines_internal start_line end_line acc = function
+  | N0 { str; lines } ->
+      if start_line < 0 && end_line >= Array.length lines then
+        (* In range. *)
+        str :: acc
+      else if start_line >= 0 && end_line < Array.length lines then
+        (* In middle. *)
+        let start =
+          (* Handle \r\n pair. *)
+          let start = Array.unsafe_get lines start_line in
+          if
+            String.unsafe_get str start = '\r'
+            && String.unsafe_get str (start + 1) = '\n'
+          then start + 2
+          else start + 1
+        in
+        let finish =
+          let finish = Array.unsafe_get lines end_line in
+          if
+            String.length str > finish
+            && String.unsafe_get str finish = '\r'
+            && String.unsafe_get str (finish + 1) = '\n'
+          then finish + 1
+          else finish
+        in
+        String.sub str start finish :: acc
+      else if start_line >= 0 then
+        (* Start of line at this node. *)
+        let start =
+          let start = Array.unsafe_get lines start_line in
+          if
+            String.unsafe_get str start = '\r'
+            && String.unsafe_get str (start + 1) = '\n'
+          then start + 2
+          else start + 1
+        in
+        String.sub str start (String.length str - start) :: acc
+      else
+        (* End of line at this node *)
+        let finish =
+          let finish = Array.unsafe_get lines end_line in
+          if
+            String.unsafe_get str finish = '\r'
+            && String.unsafe_get str (finish + 1) = '\n'
+          then finish + 1
+          else finish
+        in
+        String.sub str 0 finish :: acc
+  | N1 t -> sub_lines_internal start_line end_line acc t
+  | N2 { l; lm_lines; rm_lines; r; _ } ->
+      if lm_lines > start_line && lm_lines > end_line then
+        sub_lines_internal start_line end_line acc l
+      else if lm_lines < start_line && lm_lines < end_line then
+        sub_internal (start_line - lm_lines) (end_line - lm_lines) acc r
+      else
+        let acc =
+          sub_internal (start_line - lm_lines) (end_line - lm_lines) acc r
+        in
+        sub_internal start_line end_line acc l
+  | _ -> failwith ""
 
-(* let sub_lines start_line num_of_lines rope = *)
-(*   sub_lines_internal start (start + num_of_lines) [] rope |> String.concat "" *)
+let sub_lines start_line num_of_lines rope =
+  sub_lines_internal (start_line - 1) (start_line - 1 + num_of_lines) [] rope
+  |> String.concat ""
 
 let rec fold f state = function
   | N0 { str; lines } -> if str = "" then state else f state str lines
