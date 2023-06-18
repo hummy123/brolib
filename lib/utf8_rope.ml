@@ -557,6 +557,16 @@ let rec del_internal start_idx end_idx = function
         (empty, false)
       else if start_idx >= 0 && end_idx <= String.length str then
         (* In middle of this node. *)
+        let start_idx =
+          let chr1 = String.unsafe_get str (start_idx - 1) in
+          let chr2 = String.unsafe_get str start_idx in
+          if chr1 = '\r' && chr2 = '\n' then start_idx - 1 else start_idx
+        in
+        let end_idx =
+          let chr1 = String.unsafe_get str (end_idx - 1) in
+          let chr2 = String.unsafe_get str end_idx in
+          if chr1 = '\r' && chr2 = '\n' then end_idx + 1 else end_idx
+        in
         let sub1 = String.sub str 0 start_idx in
         let sub2 = String.sub str end_idx (String.length str - end_idx) in
         (* Raw, unedited array; sub2 may need to be mapped below.*)
@@ -592,6 +602,14 @@ let rec del_internal start_idx end_idx = function
             true )
       else if start_idx >= 0 && end_idx >= String.length str then
         (* Starts at this node. *)
+        let start_idx =
+          (* Handle \r\n pair by adjusting start_idx if needed. *)
+          if start_idx > 0 then
+            let chr = String.unsafe_get str (start_idx - 1) in
+            let chr2 = String.unsafe_get str start_idx in
+            if chr = '\r' && chr2 = '\n' then start_idx - 1 else start_idx
+          else 0
+        in
         let str = String.sub str 0 start_idx in
         let mid_point =
           split_lines start_idx lines 0 (Array.length lines - 1)
@@ -600,6 +618,14 @@ let rec del_internal start_idx end_idx = function
         (N0 { str; lines }, false)
       else
         (* Ends at this node. *)
+        let end_idx =
+          (* Handle \r\n pair, adjusting end_idx if trying to delete from middle. *)
+          if end_idx < String.length str - 1 then
+            let chr = String.unsafe_get str end_idx in
+            let chr2 = String.unsafe_get str (end_idx + 1) in
+            if chr = '\r' && chr2 = '\n' then end_idx - 1 else end_idx
+          else end_idx
+        in
         let str = String.sub str end_idx (String.length str - end_idx) in
         let mid_point = split_lines end_idx lines 0 (Array.length lines - 1) in
         let lines = sub_after mid_point lines in
@@ -636,8 +662,10 @@ let rec del_internal start_idx end_idx = function
   | _ -> failwith ""
 
 let delete start length rope =
-  let rope, did_ins = del_internal start (start + length) rope in
-  if did_ins then root rope else rope
+  if length > 0 then
+    let rope, did_ins = del_internal start (start + length) rope in
+    if did_ins then root rope else rope
+  else rope
 
 let rec text_sub_internal start_idx end_idx acc = function
   | N0 { str; _ } ->
