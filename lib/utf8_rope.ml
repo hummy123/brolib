@@ -19,13 +19,27 @@ let rec split_lines (find_num : int) lines low high =
       else split_lines find_num lines low (mid - 1)
     else mid
 
-let sub_before (less_than : int) mid_point lines =
+let sub_before mid_point lines =
   if Array.length lines = 0 then [||] else Array.sub lines 0 mid_point
 
-let sub_after not_less_than mid_point lines =
+let sub_after mid_point lines =
   if Array.length lines = 0 then [||]
   else if mid_point >= Array.length lines then [||]
   else Array.sub lines mid_point (Array.length lines - mid_point)
+
+let align_to_end_of_line str pos =
+  let chr = String.unsafe_get str pos in
+  if String.length str - 1 > pos then
+    if chr = '\r' && String.unsafe_get str (pos + 1) = '\n' then pos + 1
+    else pos
+  else pos
+
+let align_to_after_line str pos =
+  let chr = String.unsafe_get str pos in
+  match chr with
+  | '\n' -> pos + 1
+  | '\r' -> if String.unsafe_get str (pos + 1) = '\n' then pos + 2 else pos + 1
+  | _ -> pos
 
 (* Like Array.map, but mutable.
    To keep the structure's data immutable, we only use Array.map
@@ -380,8 +394,8 @@ let ins_middle ins_string old_string old_lines cur_index =
   let mid_point =
     split_lines (String.length sub1) old_lines 0 (Array.length old_lines - 1)
   in
-  let sub1_lines = sub_before (String.length sub1) mid_point old_lines in
-  let sub2_lines = sub_after (String.length sub1) mid_point old_lines in
+  let sub1_lines = sub_before mid_point old_lines in
+  let sub2_lines = sub_after mid_point old_lines in
   let sub2 =
     String.sub old_string cur_index (String.length old_string - cur_index)
   in
@@ -468,9 +482,9 @@ let rec del_internal start_idx end_idx = function
         let start_point =
           split_lines start_idx lines 0 (Array.length lines - 1)
         in
-        let sub1_lines = sub_before (String.length sub1) start_point lines in
+        let sub1_lines = sub_before start_point lines in
         let end_point = split_lines end_idx lines 0 (Array.length lines - 1) in
-        let sub2_lines = sub_after (String.length sub1) end_point lines in
+        let sub2_lines = sub_after end_point lines in
         let difference = end_idx - start_idx in
         if
           String.length sub1 + String.length sub2 <= string_length
@@ -501,13 +515,13 @@ let rec del_internal start_idx end_idx = function
         let mid_point =
           split_lines start_idx lines 0 (Array.length lines - 1)
         in
-        let lines = sub_before (String.length str) mid_point lines in
+        let lines = sub_before mid_point lines in
         (N0 { str; lines }, false)
       else
         (* Ends at this node. *)
         let str = String.sub str end_idx (String.length str - end_idx) in
         let mid_point = split_lines end_idx lines 0 (Array.length lines - 1) in
-        let lines = sub_after end_idx mid_point lines in
+        let lines = sub_after mid_point lines in
         let _ = map (fun x -> x - end_idx) lines in
         (N0 { str; lines }, false)
   | N1 t ->
@@ -544,7 +558,7 @@ let delete start length rope =
   let rope, did_ins = del_internal start (start + length) rope in
   if did_ins then root rope else rope
 
-let rec sub_internal start_idx end_idx acc = function
+let rec sub_text_internal start_idx end_idx acc = function
   | N0 { str; _ } ->
       if start_idx <= 0 && end_idx >= String.length str then
         (* In range. *)
@@ -561,23 +575,23 @@ let rec sub_internal start_idx end_idx acc = function
         (* Ends at this node. *)
         let str = String.sub str 0 end_idx in
         str :: acc
-  | N1 t -> sub_internal start_idx end_idx acc t
+  | N1 t -> sub_text_internal start_idx end_idx acc t
   | N2 { l; lm; r; _ } ->
       (* Cases we need to consider.
          1. start_idx and end_idx are in same directions (both less than or both greater than weight).
          2. start_idx and end_idx are in different direction (start_idx is less than weight while end_idx is less than weight.)
       *)
       if lm > start_idx && lm > end_idx then
-        sub_internal start_idx end_idx acc l
+        sub_text_internal start_idx end_idx acc l
       else if lm < start_idx && lm < end_idx then
-        sub_internal (start_idx - lm) (end_idx - lm) acc r
+        sub_text_internal (start_idx - lm) (end_idx - lm) acc r
       else
-        let acc = sub_internal (start_idx - lm) (end_idx - lm) acc r in
-        sub_internal start_idx end_idx acc l
+        let acc = sub_text_internal (start_idx - lm) (end_idx - lm) acc r in
+        sub_text_internal start_idx end_idx acc l
   | _ -> failwith ""
 
-let sub start length rope =
-  sub_internal start (start + length) [] rope |> String.concat ""
+let sub_text start length rope =
+  sub_text_internal start (start + length) [] rope |> String.concat ""
 
 let rec sub_lines_internal start_line end_line acc = function
   | N0 { str; lines } ->
@@ -587,62 +601,43 @@ let rec sub_lines_internal start_line end_line acc = function
       else if start_line >= 0 && end_line < Array.length lines then
         (* In middle. *)
         let start =
-          (* Handle \r\n pair. *)
-          let start = Array.unsafe_get lines start_line in
-          if
-            String.unsafe_get str start = '\r'
-            && String.unsafe_get str (start + 1) = '\n'
-          then start + 2
-          else start + 1
+          align_to_after_line str (Array.unsafe_get lines start_line)
         in
         let finish =
-          let finish = Array.unsafe_get lines end_line in
-          if
-            String.length str > finish
-            && String.unsafe_get str finish = '\r'
-            && String.unsafe_get str (finish + 1) = '\n'
-          then finish + 1
-          else finish
+          align_to_end_of_line str (Array.unsafe_get lines end_line)
         in
         String.sub str start finish :: acc
       else if start_line >= 0 then
         (* Start of line at this node. *)
         let start =
-          let start = Array.unsafe_get lines start_line in
-          if
-            String.unsafe_get str start = '\r'
-            && String.unsafe_get str (start + 1) = '\n'
-          then start + 2
-          else start + 1
+          align_to_after_line str (Array.unsafe_get lines start_line)
         in
         String.sub str start (String.length str - start) :: acc
       else
         (* End of line at this node *)
         let finish =
-          let finish = Array.unsafe_get lines end_line in
-          if
-            String.unsafe_get str finish = '\r'
-            && String.unsafe_get str (finish + 1) = '\n'
-          then finish + 1
-          else finish
+          align_to_end_of_line str (Array.unsafe_get lines end_line)
         in
         String.sub str 0 finish :: acc
   | N1 t -> sub_lines_internal start_line end_line acc t
-  | N2 { l; lm_lines; rm_lines; r; _ } ->
+  | N2 { l; lm_lines; r; _ } ->
       if lm_lines > start_line && lm_lines > end_line then
         sub_lines_internal start_line end_line acc l
       else if lm_lines < start_line && lm_lines < end_line then
-        sub_internal (start_line - lm_lines) (end_line - lm_lines) acc r
+        sub_text_internal (start_line - lm_lines) (end_line - lm_lines) acc r
       else
         let acc =
-          sub_internal (start_line - lm_lines) (end_line - lm_lines) acc r
+          sub_text_internal (start_line - lm_lines) (end_line - lm_lines) acc r
         in
-        sub_internal start_line end_line acc l
+        sub_text_internal start_line end_line acc l
   | _ -> failwith ""
 
 let sub_lines start_line num_of_lines rope =
   sub_lines_internal (start_line - 1) (start_line - 1 + num_of_lines) [] rope
   |> String.concat ""
+
+let sub_line line rope =
+  sub_lines_internal (line - 1) 1 [] rope |> String.concat ""
 
 let rec fold f state = function
   | N0 { str; lines } -> if str = "" then state else f state str lines
