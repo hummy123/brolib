@@ -61,6 +61,9 @@ let () =
   let _ =
     Utils.run_to_string_time "Automerge to_string Rope" automerge rope_to_string
   in
-  (* Printf.printf "Svelte string:\n%s" svelte_string; *)
-  print_lines svelte;
+  (* let out_buffer = Buffer.create (String.length svelte_string) in *)
+  (* Buffer.add_string out_buffer svelte_string; *)
+  (* let oc = open_out "svelte.txt" in *)
+  (* let _ = Buffer.output_buffer oc out_buffer in *)
+  (* let _ = close_out oc in *)
   ()

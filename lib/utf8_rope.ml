@@ -555,7 +555,7 @@ let rec del_internal start_idx end_idx = function
       if start_idx <= 0 && end_idx >= String.length str then
         (* In range. *)
         (empty, false)
-      else if start_idx > 0 && end_idx < String.length str - 1 then
+      else if start_idx > 0 && end_idx < String.length str then
         (* In middle of this node. *)
         let start_idx =
           let chr1 = String.unsafe_get str (start_idx - 1) in
@@ -600,15 +600,19 @@ let rec del_internal start_idx end_idx = function
                 s2_lines = sub2_lines;
               },
             true )
-      else if start_idx >= 0 && end_idx >= String.length str then
+      else if
+        start_idx >= 0
+        && start_idx <= String.length str
+        && end_idx >= String.length str
+      then
         (* Starts at this node. *)
         let start_idx =
           (* Handle \r\n pair by adjusting start_idx if needed. *)
-          if start_idx > 0 then
+          if start_idx > 0 && start_idx < String.length str then
             let chr = String.unsafe_get str (start_idx - 1) in
             let chr2 = String.unsafe_get str start_idx in
             if chr = '\r' && chr2 = '\n' then start_idx - 1 else start_idx
-          else 0
+          else start_idx
         in
         let str = String.sub str 0 start_idx in
         let mid_point =
@@ -650,7 +654,8 @@ let rec del_internal start_idx end_idx = function
             (N2 { l; lm; lm_lines; rm; rm_lines; r }, false)
         | true -> (ins_n2_right l r, true)
       else
-        (* It is only possible for did_ins to be true for one side as it only happens when deleting at the middle of a node. *)
+        (* It is only possible for did_ins to be true for one side as it only happens when deleting at the middle of one node,
+           and this else case deletes from more than one node. *)
         let r, did_ins_r = del_internal (start_idx - lm) (end_idx - lm) r in
         let l, did_ins_l = del_internal start_idx end_idx l in
         if did_ins_l then (ins_n2_left l r, true)
