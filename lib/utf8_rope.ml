@@ -12,8 +12,8 @@ let rec split_lines (find_num : int) lines low high =
   if Array.length lines = 0 then 0
   else
     let mid = low + ((high - low) / 2) in
-    let mid_val = Array.unsafe_get lines mid in
     if high >= low then
+      let mid_val = Array.unsafe_get lines mid in
       if mid_val = find_num then mid
       else if mid_val < find_num then split_lines find_num lines (mid + 1) high
       else split_lines find_num lines low (mid - 1)
