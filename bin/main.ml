@@ -6,8 +6,8 @@ let rope_to_string rope = Utf8_rope.to_string rope
 
 let print_lines rope =
   let stats = Utf8_rope.stats rope in
-  let lines_text = Utf8_rope.sub_lines 0 stats.num_lines rope in
-  Printf.printf "sub_lines output:\n%s\n" lines_text
+  let lines_text = Utf8_rope.lines_sub 0 stats.num_lines rope in
+  Printf.printf "sub_lines output:\n%s\n" lines_text.string
 
 (* Debugging function for printing line break differences different from expected. *)
 let line_break_at_expected rope =
