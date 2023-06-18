@@ -555,7 +555,7 @@ let rec del_internal start_idx end_idx = function
       if start_idx <= 0 && end_idx >= String.length str then
         (* In range. *)
         (empty, false)
-      else if start_idx >= 0 && end_idx <= String.length str then
+      else if start_idx > 0 && end_idx < String.length str - 1 then
         (* In middle of this node. *)
         let start_idx =
           let chr1 = String.unsafe_get str (start_idx - 1) in
