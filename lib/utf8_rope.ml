@@ -401,15 +401,27 @@ let ins_after ins_string old_string old_lines =
       }
 
 let ins_middle ins_string old_string old_lines cur_index =
-  let sub1 = String.sub old_string 0 cur_index in
   (* Line variables are "raw" and unedited from original array; may need to be modified in below if-statement. *)
+  let sub1 = String.sub old_string 0 cur_index in
   let mid_point =
     split_lines (String.length sub1) old_lines 0 (Array.length old_lines - 1)
   in
   let sub1_lines = sub_before mid_point old_lines in
-  let sub2_lines = sub_after mid_point old_lines in
   let sub2 =
     String.sub old_string cur_index (String.length old_string - cur_index)
+  in
+  let sub2_lines =
+    (* If we are inserting into the middle of a \r\n pair, then treat the former-pair as separate line breaks. *)
+    let sub1_end = String.unsafe_get old_string (cur_index - 1) in
+    let sub2_start = String.unsafe_get old_string cur_index in
+    if sub1_end = '\r' && sub2_start = '\n' then
+      (*
+          We are adding String.length sub1 to the start in case of a \r\n pair.
+          This is because we call a mutable map function on sub2_lines in the if-statements,
+          and using this value makes the array play well with them.
+      *)
+      sub_after mid_point old_lines |> Array.append [| String.length sub1 |]
+    else sub_after mid_point old_lines
   in
   let ins_lines = count_line_breaks ins_string in
   if
