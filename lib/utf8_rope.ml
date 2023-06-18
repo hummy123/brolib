@@ -76,7 +76,7 @@ type t = rope
 
 (* Metadata types, used only externally. *)
 type rope_stats = { utf8_length : int; num_lines : int }
-type line_data = { utf8_start : int; string : int }
+type line_data = { utf8_start : int; string : string }
 
 (* We accept and don't modify strings with a length of more than 1024,
    but we don't build any strings longer than that ourselves.
@@ -605,11 +605,11 @@ let rec text_sub_internal start_idx end_idx acc = function
 let text_sub start length rope =
   text_sub_internal start (start + length) [] rope |> String.concat ""
 
-let rec lines_sub_internal start_line end_line acc = function
+let rec lines_sub_internal start_line end_line acc idx = function
   | N0 { str; lines } ->
       if start_line < 0 && end_line >= Array.length lines then
         (* In range. *)
-        str :: acc
+        (str :: acc, idx)
       else if start_line >= 0 && end_line < Array.length lines then
         (* In middle. *)
         let start =
@@ -634,7 +634,7 @@ let rec lines_sub_internal start_line end_line acc = function
             let chr2 = String.unsafe_get str (pos + 1) in
             if chr2 = '\n' then pos + 2 else pos + 1
         in
-        String.sub str start (finish - start) :: acc
+        (String.sub str start (finish - start) :: acc, idx + start)
       else if
         start_line >= 0
         && start_line < Array.length lines
@@ -652,7 +652,7 @@ let rec lines_sub_internal start_line end_line acc = function
               if String.length str > pos + 2 then pos + 2 else String.length str
             else pos + 1
         in
-        String.sub str start (String.length str - start) :: acc
+        (String.sub str start (String.length str - start) :: acc, idx + start)
       else if start_line < 0 && end_line >= 0 && end_line < Array.length lines
       then
         (* End of line at this node. *)
@@ -667,30 +667,37 @@ let rec lines_sub_internal start_line end_line acc = function
               if chr2 = '\n' then next_pos + 1 else next_pos
             else next_pos
         in
-        String.sub str 0 finish :: acc
+        (String.sub str 0 finish :: acc, idx)
       else
         (* For any other case (where line start and line end are wholly out of range),
            return the accumulator without modifying it. *)
-        acc
-  | N1 t -> lines_sub_internal start_line end_line acc t
-  | N2 { l; lm_lines; r; _ } ->
+        (acc, 0)
+  | N1 t -> lines_sub_internal start_line end_line acc idx t
+  | N2 { l; lm_lines; r; lm; _ } ->
       if lm_lines > start_line && lm_lines > end_line then
-        lines_sub_internal start_line end_line acc l
+        lines_sub_internal start_line end_line acc idx l
       else if lm_lines < start_line && lm_lines < end_line then
-        lines_sub_internal (start_line - lm_lines) (end_line - lm_lines) acc r
+        lines_sub_internal (start_line - lm_lines) (end_line - lm_lines) acc
+          (idx + lm) r
       else
-        let acc =
-          lines_sub_internal (start_line - lm_lines) (end_line - lm_lines) acc r
+        let acc, _ =
+          lines_sub_internal (start_line - lm_lines) (end_line - lm_lines) acc
+            (idx + lm) r
         in
-        lines_sub_internal start_line end_line acc l
+        lines_sub_internal start_line end_line acc idx l
   | _ -> failwith ""
 
 let lines_sub start_line num_of_lines rope =
-  lines_sub_internal (start_line - 1) (start_line - 1 + num_of_lines) [] rope
-  |> String.concat ""
+  let acc, utf8_start =
+    lines_sub_internal (start_line - 1)
+      (start_line - 1 + num_of_lines)
+      [] 0 rope
+  in
+  { utf8_start; string = String.concat "" acc }
 
 let line_sub line rope =
-  lines_sub_internal (line - 1) line [] rope |> String.concat ""
+  let acc, utf8_start = lines_sub_internal (line - 1) line [] 0 rope in
+  { utf8_start; string = String.concat "" acc }
 
 let rec fold f state = function
   | N0 { str; lines } -> if str = "" then state else f state str lines
