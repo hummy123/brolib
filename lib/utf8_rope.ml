@@ -612,8 +612,28 @@ let rec lines_sub_internal start_line end_line acc = function
         str :: acc
       else if start_line >= 0 && end_line < Array.length lines then
         (* In middle. *)
-        let start = Array.unsafe_get lines start_line in
-        let finish = Array.unsafe_get lines end_line in
+        let start =
+          let pos = Array.unsafe_get lines start_line in
+          let chr = String.unsafe_get str pos in
+          if chr = '\n' then pos + 1
+          else
+            (* Implicit: chr must be '\r'' *)
+            let chr2 = String.unsafe_get str (pos + 1) in
+            if chr2 = '\n' then pos + 2 else pos + 1
+        in
+        let finish =
+          let pos = Array.unsafe_get lines end_line in
+          let chr = String.unsafe_get str pos in
+          if chr = '\n' then min (pos + 1) (String.length str)
+          else if
+            (* Implicit: chr must be '\r'' *)
+            (* We don't want to check what next character is if end_line points to last character in string. *)
+            String.length str = pos + 1
+          then pos + 1
+          else
+            let chr2 = String.unsafe_get str (pos + 1) in
+            if chr2 = '\n' then pos + 2 else pos + 1
+        in
         String.sub str start (finish - start) :: acc
       else if
         start_line >= 0
@@ -621,12 +641,32 @@ let rec lines_sub_internal start_line end_line acc = function
         && end_line >= Array.length lines
       then
         (* Start of line at this node. *)
-        let start = Array.unsafe_get lines start_line in
+        let start =
+          let pos = Array.unsafe_get lines start_line in
+          let chr = String.unsafe_get str pos in
+          if chr = '\n' then pos + 1
+          else if String.length str = pos + 1 then String.length str
+          else
+            let chr2 = String.unsafe_get str (pos + 1) in
+            if chr2 = '\n' then
+              if String.length str > pos + 2 then pos + 2 else String.length str
+            else pos + 1
+        in
         String.sub str start (String.length str - start) :: acc
       else if start_line < 0 && end_line >= 0 && end_line < Array.length lines
       then
-        (* End of line at this node *)
-        let finish = Array.unsafe_get lines end_line in
+        (* End of line at this node. *)
+        let finish =
+          let pos = Array.unsafe_get lines end_line in
+          let chr = String.unsafe_get str pos in
+          if chr = '\n' then pos + 1
+          else
+            let next_pos = pos + 1 in
+            if String.length str > next_pos then
+              let chr2 = String.unsafe_get str next_pos in
+              if chr2 = '\n' then next_pos + 1 else next_pos
+            else next_pos
+        in
         String.sub str 0 finish :: acc
       else
         (* For any other case (where line start and line end are wholly out of range),
