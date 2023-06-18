@@ -4,6 +4,11 @@ let rope_insert pos ins_str rope = Utf8_rope.insert pos ins_str rope
 let rope_delete start length rope = Utf8_rope.delete start length rope
 let rope_to_string rope = Utf8_rope.to_string rope
 
+let print_lines rope =
+  let stats = Utf8_rope.stats rope in
+  let lines_text = Utf8_rope.sub_lines 0 stats.num_lines rope in
+  Printf.printf "sub_lines output:\n%s\n" lines_text
+
 (* Debugging function for printing line break differences different from expected. *)
 let line_break_at_expected rope =
   Utf8_rope.fold
@@ -48,7 +53,7 @@ let () =
   in
   let _ = line_break_at_expected automerge in
   Printf.printf "\n-\t Rope to_string \t-";
-  let _ =
+  let svelte_string =
     Utils.run_to_string_time "Svelte to_string Rope" svelte rope_to_string
   in
   let _ = Utils.run_to_string_time "Rust to_string Rope" rust rope_to_string in
@@ -56,4 +61,6 @@ let () =
   let _ =
     Utils.run_to_string_time "Automerge to_string Rope" automerge rope_to_string
   in
+  (* Printf.printf "Svelte string:\n%s" svelte_string; *)
+  print_lines svelte;
   ()

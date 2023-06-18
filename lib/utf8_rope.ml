@@ -51,6 +51,7 @@ let rec map ?(pos = 0) (f : int -> int) lines =
     Array.unsafe_set lines pos (f num);
     map f lines ~pos:(pos + 1)
 
+(* Main rope type. *)
 type rope =
   | N0 of { str : string; lines : int array }
   | N1 of rope
@@ -73,6 +74,10 @@ type rope =
 
 type t = rope
 
+(* Metadata types, used only externally. *)
+type rope_stats = { utf8_length : int; num_lines : int }
+type line_data = { utf8_start : int; string : int }
+
 (* We accept and don't modify strings with a length of more than 1024,
    but we don't build any strings longer than that ourselves.
    The target_length has performance implications and 1024 seems like a good size from benchmarks. *)
@@ -90,6 +95,13 @@ let rec size = function
       let idx2, lines2 = size t2 in
       let idx3, lines3 = size t3 in
       (idx1 + idx2 + idx3, lines1 + lines2 + lines3)
+  | _ -> failwith ""
+
+let stats = function
+  | N0 { str; lines } ->
+      { utf8_length = String.length str; num_lines = Array.length lines + 1 }
+  | N2 { lm; rm; lm_lines; rm_lines; _ } ->
+      { utf8_length = lm + rm; num_lines = lm_lines + rm_lines + 1 }
   | _ -> failwith ""
 
 let root = function
@@ -558,7 +570,7 @@ let delete start length rope =
   let rope, did_ins = del_internal start (start + length) rope in
   if did_ins then root rope else rope
 
-let rec sub_text_internal start_idx end_idx acc = function
+let rec text_sub_internal start_idx end_idx acc = function
   | N0 { str; _ } ->
       if start_idx <= 0 && end_idx >= String.length str then
         (* In range. *)
@@ -575,69 +587,70 @@ let rec sub_text_internal start_idx end_idx acc = function
         (* Ends at this node. *)
         let str = String.sub str 0 end_idx in
         str :: acc
-  | N1 t -> sub_text_internal start_idx end_idx acc t
+  | N1 t -> text_sub_internal start_idx end_idx acc t
   | N2 { l; lm; r; _ } ->
       (* Cases we need to consider.
          1. start_idx and end_idx are in same directions (both less than or both greater than weight).
          2. start_idx and end_idx are in different direction (start_idx is less than weight while end_idx is less than weight.)
       *)
       if lm > start_idx && lm > end_idx then
-        sub_text_internal start_idx end_idx acc l
+        text_sub_internal start_idx end_idx acc l
       else if lm < start_idx && lm < end_idx then
-        sub_text_internal (start_idx - lm) (end_idx - lm) acc r
+        text_sub_internal (start_idx - lm) (end_idx - lm) acc r
       else
-        let acc = sub_text_internal (start_idx - lm) (end_idx - lm) acc r in
-        sub_text_internal start_idx end_idx acc l
+        let acc = text_sub_internal (start_idx - lm) (end_idx - lm) acc r in
+        text_sub_internal start_idx end_idx acc l
   | _ -> failwith ""
 
-let sub_text start length rope =
-  sub_text_internal start (start + length) [] rope |> String.concat ""
+let text_sub start length rope =
+  text_sub_internal start (start + length) [] rope |> String.concat ""
 
-let rec sub_lines_internal start_line end_line acc = function
+let rec lines_sub_internal start_line end_line acc = function
   | N0 { str; lines } ->
       if start_line < 0 && end_line >= Array.length lines then
         (* In range. *)
         str :: acc
       else if start_line >= 0 && end_line < Array.length lines then
         (* In middle. *)
-        let start =
-          align_to_after_line str (Array.unsafe_get lines start_line)
-        in
-        let finish =
-          align_to_end_of_line str (Array.unsafe_get lines end_line)
-        in
-        String.sub str start finish :: acc
-      else if start_line >= 0 then
+        let start = Array.unsafe_get lines start_line in
+        let finish = Array.unsafe_get lines end_line in
+        String.sub str start (finish - start) :: acc
+      else if
+        start_line >= 0
+        && start_line < Array.length lines
+        && end_line >= Array.length lines
+      then
         (* Start of line at this node. *)
-        let start =
-          align_to_after_line str (Array.unsafe_get lines start_line)
-        in
+        let start = Array.unsafe_get lines start_line in
         String.sub str start (String.length str - start) :: acc
-      else
+      else if start_line < 0 && end_line >= 0 && end_line < Array.length lines
+      then
         (* End of line at this node *)
-        let finish =
-          align_to_end_of_line str (Array.unsafe_get lines end_line)
-        in
+        let finish = Array.unsafe_get lines end_line in
         String.sub str 0 finish :: acc
-  | N1 t -> sub_lines_internal start_line end_line acc t
+      else
+        (* For any other case (where line start and line end are wholly out of range),
+           return the accumulator without modifying it. *)
+        acc
+  | N1 t -> lines_sub_internal start_line end_line acc t
   | N2 { l; lm_lines; r; _ } ->
       if lm_lines > start_line && lm_lines > end_line then
-        sub_lines_internal start_line end_line acc l
+        lines_sub_internal start_line end_line acc l
       else if lm_lines < start_line && lm_lines < end_line then
-        sub_text_internal (start_line - lm_lines) (end_line - lm_lines) acc r
+        lines_sub_internal (start_line - lm_lines) (end_line - lm_lines) acc r
       else
         let acc =
-          sub_text_internal (start_line - lm_lines) (end_line - lm_lines) acc r
+          lines_sub_internal (start_line - lm_lines) (end_line - lm_lines) acc r
         in
-        sub_text_internal start_line end_line acc l
+        lines_sub_internal start_line end_line acc l
   | _ -> failwith ""
 
-let sub_lines start_line num_of_lines rope =
-  sub_lines_internal (start_line - 1) (start_line - 1 + num_of_lines) [] rope
+let lines_sub start_line num_of_lines rope =
+  lines_sub_internal (start_line - 1) (start_line - 1 + num_of_lines) [] rope
   |> String.concat ""
 
-let sub_line line rope =
-  sub_lines_internal (line - 1) 1 [] rope |> String.concat ""
+let line_sub line rope =
+  lines_sub_internal (line - 1) line [] rope |> String.concat ""
 
 let rec fold f state = function
   | N0 { str; lines } -> if str = "" then state else f state str lines
