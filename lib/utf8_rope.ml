@@ -472,6 +472,63 @@ let rec ins cur_index ins_string = function
 
 let insert index string rope = root (ins index string rope)
 
+(* Can just call insert with index of 0, but want to avoid branch prediction cost. *)
+let rec prepend_internal ins_string = function
+  | N0 { str = old_string; lines = old_lines } ->
+      let ins_lines = count_line_breaks ins_string in
+      if
+        String.length ins_string + String.length old_string <= string_length
+        && Array.length ins_lines + Array.length old_lines <= array_length
+      then
+        let old_lines =
+          Array.map (fun x -> x + String.length ins_string) old_lines
+        in
+        N0
+          {
+            str = ins_string ^ old_string;
+            lines = Array.append ins_lines old_lines;
+          }
+      else
+        L2
+          {
+            s1 = ins_string;
+            s1_lines = ins_lines;
+            s2 = old_string;
+            s2_lines = old_lines;
+          }
+  | N1 t -> n1 (prepend_internal ins_string t)
+  | N2 { l; r; _ } -> ins_n2_left (prepend_internal ins_string l) r
+  | _ -> failwith ""
+
+let prepend string rope = root (prepend_internal string rope)
+
+let rec append_internal ins_string = function
+  | N0 { str = old_string; lines = old_lines } ->
+      let ins_lines = count_line_breaks ins_string in
+      if
+        String.length old_string + String.length ins_string <= string_length
+        && Array.length ins_lines + Array.length old_lines <= array_length
+      then
+        let ins_lines = map (fun x -> x + String.length old_string) ins_lines in
+        N0
+          {
+            str = old_string ^ ins_string;
+            lines = Array.append old_lines ins_lines;
+          }
+      else
+        L2
+          {
+            s1 = old_string;
+            s1_lines = old_lines;
+            s2 = ins_string;
+            s2_lines = ins_lines;
+          }
+  | N1 t -> n1 (append_internal ins_string t)
+  | N2 { l; r; _ } -> ins_n2_right l (prepend_internal ins_string r)
+  | _ -> failwith ""
+
+let append string rope = root (append_internal string rope)
+
 (*
     Deletion involves deleting strings within nodes rather deleting the nodes themselves,
     as this helps better maintain balancing.
@@ -714,6 +771,8 @@ let rec fold_back f state = function
       let state = fold_back f state r in
       fold_back f state l
   | _ -> failwith ""
+
+let flatten rope = fold (fun rope str _ -> append str rope) rope
 
 let to_string rope =
   let lst = fold_back (fun lst str _ -> str :: lst) [] rope in
