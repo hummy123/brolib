@@ -822,3 +822,18 @@ let flatten rope = fold (fun rope str _ -> append str rope) rope
 let to_string rope =
   let lst = fold_back (fun lst str _ -> str :: lst) [] rope in
   String.concat "" lst
+
+let save file_path rope =
+  let stats = stats rope in
+  let buffer = Buffer.create stats.utf8_length in
+  let _ = fold (fun _ str _ -> Buffer.add_string buffer str) () rope in
+  let oc = open_out file_path in
+  let _ = Buffer.output_buffer oc buffer in
+  let _ = close_out oc in
+  ()
+
+let load file_path =
+  let ch = open_in file_path in
+  let str = really_input_string ch (in_channel_length ch) in
+  let _ = close_in ch in
+  append str empty
