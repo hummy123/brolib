@@ -116,7 +116,29 @@ let rec ins cur_index string = function
 
 let insert index string rope = root (ins index string rope)
 
-let rec sub_internal start_idx end_idx acc = function
+let rec prepend_internal string = function
+  | N0 str ->
+      if String.length str + String.length string <= target_length then
+        N0 (string ^ str)
+      else L2 (string, str)
+  | N1 t -> n1 (prepend_internal string t)
+  | N2 (l, _, _, r) -> ins_n2_left (prepend_internal string l) r
+  | _ -> failwith ""
+
+let prepend string rope = root (prepend_internal string rope)
+
+let rec append_internal string = function
+  | N0 str ->
+      if String.length str + String.length string <= target_length then
+        N0 (str ^ string)
+      else L2 (str, string)
+  | N1 t -> n1 (append_internal string t)
+  | N2 (l, _, _, r) -> ins_n2_right l (append_internal string r)
+  | _ -> failwith ""
+
+let append string rope = root (append_internal string rope)
+
+let rec text_sub_internal start_idx end_idx acc = function
   | N0 str ->
       if start_idx <= 0 && end_idx >= String.length str then
         (* In range. *)
@@ -133,23 +155,23 @@ let rec sub_internal start_idx end_idx acc = function
         (* Ends at this node. *)
         let str = String.sub str 0 end_idx in
         str :: acc
-  | N1 t -> sub_internal start_idx end_idx acc t
+  | N1 t -> text_sub_internal start_idx end_idx acc t
   | N2 (l, lm, _, r) ->
       (* Cases we need to consider.
          1. start_idx and end_idx are in same directions (both less than or both greater than weight).
          2. start_idx and end_idx are in different direction (start_idx is less than weight while end_idx is less than weight.)
       *)
       if lm > start_idx && lm > end_idx then
-        sub_internal start_idx end_idx acc l
+        text_sub_internal start_idx end_idx acc l
       else if lm < start_idx && lm < end_idx then
-        sub_internal (start_idx - lm) (end_idx - lm) acc r
+        text_sub_internal (start_idx - lm) (end_idx - lm) acc r
       else
-        let acc = sub_internal (start_idx - lm) (end_idx - lm) acc r in
-        sub_internal start_idx end_idx acc l
+        let acc = text_sub_internal (start_idx - lm) (end_idx - lm) acc r in
+        text_sub_internal start_idx end_idx acc l
   | _ -> failwith ""
 
-let sub start length rope =
-  sub_internal start (start + length) [] rope |> String.concat ""
+let text_sub start length rope =
+  text_sub_internal start (start + length) [] rope |> String.concat ""
 
 (*
     Deletion involves deleting strings within nodes rather deleting the nodes themselves,
@@ -228,3 +250,26 @@ let rec fold_back f state = function
 let to_string rope =
   let lst = fold_back (fun lst str -> str :: lst) [] rope in
   String.concat "" lst
+
+type rope_stats = { utf8_length : int }
+
+let stats rope =
+  let utf8_length = size rope in
+  { utf8_length }
+
+let flatten rope = fold (fun rope str -> append str rope) rope
+
+let save file_path rope =
+  let length = size rope in
+  let buffer = Buffer.create length in
+  let _ = fold (fun _ str -> Buffer.add_string buffer str) () rope in
+  let oc = open_out file_path in
+  let _ = Buffer.output_buffer oc buffer in
+  let _ = close_out oc in
+  ()
+
+let load file_path =
+  let ch = open_in file_path in
+  let str = really_input_string ch (in_channel_length ch) in
+  let _ = close_in ch in
+  append str empty
