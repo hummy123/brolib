@@ -536,7 +536,7 @@ let rec append_internal ins_string = function
             s2_lines = ins_lines;
           }
   | N1 t -> n1 (append_internal ins_string t)
-  | N2 { l; r; _ } -> ins_n2_right l (prepend_internal ins_string r)
+  | N2 { l; r; _ } -> ins_n2_right l (append_internal ins_string r)
   | _ -> failwith ""
 
 let append string rope = root (append_internal string rope)
