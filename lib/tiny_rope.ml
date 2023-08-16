@@ -302,8 +302,15 @@ let rec fold_back f state = function
   | _ -> failwith ""
 
 let to_string rope =
-  let lst = fold_back (fun lst str -> str :: lst) [] rope in
-  String.concat "" lst
+  let bytes = Bytes.create (size rope) in
+  let _ =
+    fold
+      (fun pos str ->
+        Bytes.unsafe_blit_string str 0 bytes pos (String.length str);
+        pos + String.length str)
+      0 rope
+  in
+  Bytes.unsafe_to_string bytes
 
 type rope_stats = { utf8_length : int }
 
