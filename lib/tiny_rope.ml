@@ -97,17 +97,29 @@ let rec ins cur_index string = function
           N0 (str ^ string)
         else L2 (str, string)
       else
-        let sub1 = String.sub str 0 cur_index in
-        let sub2 = String.sub str cur_index (String.length str - cur_index) in
         if String.length str + String.length string <= target_length then
-          N0 (sub1 ^ string ^ sub2)
-        else if String.length sub1 + String.length string <= target_length then
-          L2 (sub1 ^ string, sub2)
-        else if String.length sub2 + String.length string <= target_length then
-          L2 (sub1, string ^ sub2)
-        else
-          (* String must be split into 3 different parts. *)
-          N3 (N0 sub1, N0 string, N0 sub2)
+          (* Create mutable byte array containing length of both strings. *)
+          let bytes = Bytes.create (String.length str + String.length string) in
+          (* Copy the first half of the old string to the start of the Bytes. *)
+          let _ = Bytes.unsafe_blit_string str 0 bytes 0 (cur_index) in
+          (* Copy the second half of the old string to the end of the Bytes. *)
+          let _ = Bytes.unsafe_blit_string str cur_index bytes (cur_index + String.length string) (String.length str - cur_index) in
+          (* Copy the newly inserted string to the middle of the Bytes. *)
+          let _ = Bytes.unsafe_blit_string string 0 bytes cur_index (String.length string) in
+          (* Return the Bytes as a string. This is still outwardly immutable, 
+             because the mutable bytes were created in this function and returned as an immutable string 
+             by this function too. *)
+          N0 ((Bytes.unsafe_to_string bytes))
+        else 
+          let sub1 = String.sub str 0 cur_index in
+          let sub2 = String.sub str cur_index (String.length str - cur_index) in
+          if String.length sub1 + String.length string <= target_length then
+            L2 (sub1 ^ string, sub2)
+          else if String.length sub2 + String.length string <= target_length then
+            L2 (sub1, string ^ sub2)
+          else
+            (* String must be split into 3 different parts. *)
+            N3 (N0 sub1, N0 string, N0 sub2)
   | N1 t -> n1 (ins cur_index string t)
   | N2 (l, lm, _, r) ->
       if cur_index < lm then ins_n2_left (ins cur_index string l) r

@@ -42,10 +42,11 @@ let run_edit_traces title empty f_ins f_del f_to_string =
     run_txns_time ("Automerge " ^ title) Automerge.data empty f_ins f_del
   in
   Printf.printf "\n-\t%s to string" title;
-  let _ = run_to_string_time ("Svelte to_string " ^ title) svelte f_to_string in
-  let _ = run_to_string_time ("Rust to_string " ^ title) rust f_to_string in
-  let _ = run_to_string_time ("Seph to_string " ^ title) seph f_to_string in
-  let _ =
+  let svelte_str = run_to_string_time ("Svelte to_string " ^ title) svelte f_to_string in
+  let rust_str = run_to_string_time ("Rust to_string " ^ title) rust f_to_string in
+  let seph_str = run_to_string_time ("Seph to_string " ^ title) seph f_to_string in
+  let automerge_str =
     run_to_string_time ("Automerge to_string " ^ title) automerge f_to_string
   in
+  Printf.printf "%s" automerge_str;
   ()
