@@ -116,9 +116,8 @@ let rec ins cur_index string = function
            because the mutable bytes were created in this function and returned as an immutable string
            by this function too. *)
         N0 (Bytes.unsafe_to_string bytes)
-      else if
         (* All if-staments below are if concatenating into a single string exceeds target_length. *)
-
+      else if
         (* If first half of old string + insert string does not exceed target_length. *)
         cur_index + String.length string <= target_length
       then
@@ -235,11 +234,20 @@ let rec del_internal start_idx end_idx = function
         (N0 "", false)
       else if start_idx >= 0 && end_idx <= String.length str then
         (* In middle of this node. *)
-        let sub1 = String.sub str 0 start_idx in
-        let sub2 = String.sub str end_idx (String.length str - end_idx) in
-        if String.length sub1 + String.length sub2 <= target_length then
-          (N0 (sub1 ^ sub2), false)
-        else (L2 (sub1, sub2), true)
+        if start_idx + (String.length str - end_idx) <= target_length then
+          let bytes =
+            Bytes.create (start_idx + (String.length str - end_idx))
+          in
+          let _ = Bytes.unsafe_blit_string str 0 bytes 0 start_idx in
+          let _ =
+            Bytes.unsafe_blit_string str end_idx bytes start_idx
+              (String.length str - end_idx)
+          in
+          (N0 (Bytes.unsafe_to_string bytes), false)
+        else
+          let sub1 = String.sub str 0 start_idx in
+          let sub2 = String.sub str end_idx (String.length str - end_idx) in
+          (L2 (sub1, sub2), true)
       else if start_idx >= 0 && end_idx >= String.length str then
         (* Starts at this node. *)
         let str = String.sub str 0 start_idx in
