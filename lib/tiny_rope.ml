@@ -371,6 +371,25 @@ let rec fold_left_starting_at f state index is_after_index f_term = function
 let fold_left_starting_at f state index f_term rope =
   fold_left_starting_at f state index false f_term rope
 
+let rec fold_right_starting_at f state index is_after_index f_term = function
+  | N0 "" -> state
+  | N0 str as node ->
+      if is_after_index then f state str
+      else
+        let sub = sub_string index (String.length str - index) node in
+        f state sub
+  | N1 t -> fold_right_starting_at f state index is_after_index f_term t
+  | N2 (l, lm, _, r) ->
+      if index < lm then
+        let state = fold_right_starting_at f state (index - lm) true f_term r in
+        if f_term state then state
+        else fold_right_starting_at f state index is_after_index f_term l
+      else fold_right_starting_at f state (index - lm) is_after_index f_term r
+  | _ -> failwith ""
+
+let fold_right_starting_at f state index f_term rope =
+  fold_right_starting_at f state index false f_term rope
+
 let to_string rope =
   let bytes = Bytes.create (size rope) in
   let _ =
@@ -420,6 +439,8 @@ let rindex_from_opt rope ~before_index chr =
   in
   match result with _, Some idx -> Some idx | _ -> None
 
+let rindex_opt rope chr = rindex_from_opt rope ~before_index:(size rope - 1) chr
+
 let index_from_opt rope ~after_index chr =
   let result =
     fold_left_starting_at
@@ -435,3 +456,5 @@ let index_from_opt rope ~after_index chr =
       rope
   in
   match result with _, Some idx -> Some idx | _ -> None
+
+let index_opt rope chr = index_from_opt rope ~after_index:0 chr
