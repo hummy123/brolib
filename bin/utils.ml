@@ -49,3 +49,6 @@ let run_edit_traces title empty f_ins f_del f_to_string =
     run_to_string_time ("Automerge to_string " ^ title) automerge f_to_string
   in
   ()
+
+let get_svelte empty f_ins f_del =
+  run_txns_time "svelte" Sveltecomponent.data empty f_ins f_del

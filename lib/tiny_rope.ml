@@ -301,20 +301,47 @@ let rec fold_back f state = function
       fold_back f state l
   | _ -> failwith ""
 
-let rec fold_before_index f state index = function
+(* Applies a function f to all non-empty strings in the rope before index.
+   The traversal order is frmm right-to-left; the highest index first and then
+   the previous indices after. *)
+let rec fold_right_before_index f state index is_before_index = function
   | N0 "" -> state
-  | N0 str ->
-      if index = -1 then f state str
+  | N0 str as node ->
+      if is_before_index then f state str
       else
-        let sub = String.sub str index (String.length str - index) in
+        let sub = sub_string 0 index node in
         f state sub
-  | N1 t -> fold_before_index f state index t
+  | N1 t -> fold_right_before_index f state index is_before_index t
   | N2 (l, lm, _, r) ->
-      if index < lm then fold_before_index f state index l
+      if index < lm then fold_right_before_index f state index is_before_index l
       else
-        let state = fold_before_index f state (index - lm) r in
-        fold_before_index f state (-1) l
+        let state = fold_right_before_index f state (index - lm) false r in
+        fold_right_before_index f state index true l
   | _ -> failwith ""
+
+let fold_right_before_index f state index rope =
+  fold_right_before_index f state index false rope
+
+(* Applies a function f to all non-empty strings in the rope before index.
+   The traversal order is frmm left-to-right; the lowest index first and then
+   the higher indices after. *)
+let rec fold_left_before_index f state index is_before_index = function
+  | N0 "" -> state
+  | N0 str as node ->
+      if is_before_index then f state str
+      else
+        let sub = sub_string 0 index node in
+        f state sub
+  | N1 t -> fold_left_before_index f state index is_before_index t
+  | N2 (l, lm, _, r) ->
+      if index < lm then fold_left_before_index f state index is_before_index l
+      else
+        let state = fold_left_before_index f state index true l in
+        fold_left_before_index f state (index - lm) is_before_index r
+  | _ -> failwith ""
+
+let fold_left_before_index f state index rope =
+  fold_left_before_index f state index false rope
 
 let rec fold_after_index f state index = function
   | N0 "" -> state
@@ -360,3 +387,21 @@ let ends_with ~suffix rope =
     sub_string (size rope - String.length suffix) (String.length suffix) rope
   in
   str = suffix
+
+let rindex_from_opt rope ~before_index chr =
+  let result =
+    fold_right_before_index
+      (fun (idx, acc) str ->
+        let start_idx = idx - String.length str in
+        let acc =
+          match acc with
+          | Some _ as result -> result
+          | None -> (
+              match String.rindex_from_opt str (String.length str - 1) chr with
+              | Some found_idx -> Some (start_idx + found_idx)
+              | None -> None)
+        in
+        (start_idx, acc))
+      (before_index, None) before_index rope
+  in
+  match result with _, Some idx -> Some idx | _ -> None
