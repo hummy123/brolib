@@ -183,7 +183,7 @@ let rec append_internal string = function
 
 let append string rope = root (append_internal string rope)
 
-let rec text_sub_internal start_idx end_idx acc = function
+let rec sub_string_internal start_idx end_idx acc = function
   | N0 str ->
       if start_idx <= 0 && end_idx >= String.length str then
         (* In range. *)
@@ -200,23 +200,23 @@ let rec text_sub_internal start_idx end_idx acc = function
         (* Ends at this node. *)
         let str = String.sub str 0 end_idx in
         str :: acc
-  | N1 t -> text_sub_internal start_idx end_idx acc t
+  | N1 t -> sub_string_internal start_idx end_idx acc t
   | N2 (l, lm, _, r) ->
       (* Cases we need to consider.
          1. start_idx and end_idx are in same directions (both less than or both greater than weight).
          2. start_idx and end_idx are in different direction (start_idx is less than weight while end_idx is less than weight.)
       *)
       if lm > start_idx && lm > end_idx then
-        text_sub_internal start_idx end_idx acc l
+        sub_string_internal start_idx end_idx acc l
       else if lm < start_idx && lm < end_idx then
-        text_sub_internal (start_idx - lm) (end_idx - lm) acc r
+        sub_string_internal (start_idx - lm) (end_idx - lm) acc r
       else
-        let acc = text_sub_internal (start_idx - lm) (end_idx - lm) acc r in
-        text_sub_internal start_idx end_idx acc l
+        let acc = sub_string_internal (start_idx - lm) (end_idx - lm) acc r in
+        sub_string_internal start_idx end_idx acc l
   | _ -> failwith ""
 
-let text_sub start length rope =
-  text_sub_internal start (start + length) [] rope |> String.concat ""
+let sub_string start length rope =
+  sub_string_internal start (start + length) [] rope |> String.concat ""
 
 (*
     Deletion involves deleting strings within nodes rather deleting the nodes themselves,
@@ -301,6 +301,36 @@ let rec fold_back f state = function
       fold_back f state l
   | _ -> failwith ""
 
+let rec fold_before_index f state index = function
+  | N0 "" -> state
+  | N0 str ->
+      if index = -1 then f state str
+      else
+        let sub = String.sub str index (String.length str - index) in
+        f state sub
+  | N1 t -> fold_before_index f state index t
+  | N2 (l, lm, _, r) ->
+      if index < lm then fold_before_index f state index l
+      else
+        let state = fold_before_index f state (index - lm) r in
+        fold_before_index f state (-1) l
+  | _ -> failwith ""
+
+let rec fold_after_index f state index = function
+  | N0 "" -> state
+  | N0 str ->
+      if index = -1 then f state str
+      else
+        let sub = String.sub str index (String.length str - index) in
+        f state sub
+  | N1 t -> fold_after_index f state index t
+  | N2 (l, lm, _, r) ->
+      if index < lm then
+        let state = fold_after_index f state index l in
+        fold_after_index f state (-1) r
+      else fold_after_index f state (index - lm) r
+  | _ -> failwith ""
+
 let to_string rope =
   let bytes = Bytes.create (size rope) in
   let _ =
@@ -319,3 +349,14 @@ let stats rope =
   { utf8_length }
 
 let flatten rope = fold (fun rope str -> append str rope) rope
+
+(* Implementation of some functions from the String.module, but on Tiny_rope. *)
+let starts_with ~prefix rope =
+  let str = sub_string 0 (String.length prefix) rope in
+  str = prefix
+
+let ends_with ~suffix rope =
+  let str =
+    sub_string (size rope - String.length suffix) (String.length suffix) rope
+  in
+  str = suffix
