@@ -13,12 +13,12 @@ let () =
   (* Utils.run_edit_traces "Utf8_rope" Utf8_rope.empty utf8_insert utf8_delete *)
   (*   utf8_to_string *)
   let svelte = Utils.get_svelte Tiny_rope.empty tiny_insert tiny_delete in
-  let str = Tiny_rope.sub_string 0 500 svelte in
+  let str = Tiny_rope.sub_string 0 1000 svelte in
   Printf.printf "str:\n%s" str;
   Printf.printf "\nend;;\n\n";
   (* (match String.rindex_opt str  '/' with *)
   (* | Some x -> Printf.printf "\n%i" x; *)
   (* | None -> ()); *)
-  match Tiny_rope.rindex_from_opt svelte ~before_index:500 'p' with
+  match Tiny_rope.index_from_opt svelte ~after_index:500 'x' with
   | Some idx -> Printf.printf "\nfound at idx: %i\n" idx
   | None -> Printf.printf "\nnot found"

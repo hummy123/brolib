@@ -304,7 +304,7 @@ let rec fold_back f state = function
 (* Applies a function f to all non-empty strings in the rope before index.
    The traversal order is frmm right-to-left; the highest index first and then
    the previous indices after. *)
-let rec fold_right_before_index f_state state index is_before_index f_term =
+let rec fold_right_ending_at f_state state index is_before_index f_term =
   function
   | N0 "" -> state
   | N0 str as node ->
@@ -312,59 +312,64 @@ let rec fold_right_before_index f_state state index is_before_index f_term =
       else
         let sub = sub_string 0 index node in
         f_state state sub
-  | N1 t -> fold_right_before_index f_state state index is_before_index f_term t
+  | N1 t -> fold_right_ending_at f_state state index is_before_index f_term t
   | N2 (l, lm, _, r) ->
       if index < lm then
-        fold_right_before_index f_state state index is_before_index f_term l
+        fold_right_ending_at f_state state index is_before_index f_term l
       else
         let state =
-          fold_right_before_index f_state state (index - lm) false f_term r
+          fold_right_ending_at f_state state (index - lm) false f_term r
         in
         if f_term state then state
-        else fold_right_before_index f_state state index true f_term l
+        else fold_right_ending_at f_state state index true f_term l
   | _ -> failwith ""
 
-let fold_right_before_index f state index f_term rope =
-  fold_right_before_index f state index false f_term rope
+let fold_right_ending_at f state index f_term rope =
+  fold_right_ending_at f state index false f_term rope
 
 (* Applies a function f to all non-empty strings in the rope before index.
    The traversal order is frmm left-to-right; the lowest index first and then
    the higher indices after. *)
-let rec fold_left_before_index f state index is_before_index f_term = function
+let rec fold_left_ending_at f state index is_before_index f_term = function
   | N0 "" -> state
   | N0 str as node ->
       if is_before_index then f state str
       else
         let sub = sub_string 0 index node in
         f state sub
-  | N1 t -> fold_left_before_index f state index is_before_index f_term t
+  | N1 t -> fold_left_ending_at f state index is_before_index f_term t
   | N2 (l, lm, _, r) ->
       if index < lm then
-        fold_left_before_index f state index is_before_index f_term l
+        fold_left_ending_at f state index is_before_index f_term l
       else
-        let state = fold_left_before_index f state index true f_term l in
+        let state = fold_left_ending_at f state index true f_term l in
         if f_term state then state
-        else
-          fold_left_before_index f state (index - lm) is_before_index f_term r
+        else fold_left_ending_at f state (index - lm) is_before_index f_term r
   | _ -> failwith ""
 
-let fold_left_before_index f state index f_term rope =
-  fold_left_before_index f state index false f_term rope
+let fold_left_ending_at f state index f_term rope =
+  fold_left_ending_at f state index false f_term rope
 
-let rec fold_after_index f state index = function
+let rec fold_left_starting_at f state index is_after_index f_term = function
   | N0 "" -> state
-  | N0 str ->
-      if index = -1 then f state str
+  | N0 str as node ->
+      if is_after_index then f state str
       else
-        let sub = String.sub str index (String.length str - index) in
+        let sub = sub_string index (String.length str - index) node in
         f state sub
-  | N1 t -> fold_after_index f state index t
+  | N1 t -> fold_left_starting_at f state index is_after_index f_term t
   | N2 (l, lm, _, r) ->
       if index < lm then
-        let state = fold_after_index f state index l in
-        fold_after_index f state (-1) r
-      else fold_after_index f state (index - lm) r
+        let state =
+          fold_left_starting_at f state index is_after_index f_term l
+        in
+        if f_term state then state
+        else fold_left_starting_at f state (index - lm) true f_term r
+      else fold_left_starting_at f state (index - lm) is_after_index f_term r
   | _ -> failwith ""
+
+let fold_left_starting_at f state index f_term rope =
+  fold_left_starting_at f state index false f_term rope
 
 let to_string rope =
   let bytes = Bytes.create (size rope) in
@@ -396,9 +401,11 @@ let ends_with ~suffix rope =
   in
   str = suffix
 
+let is_some = function Some _ -> true | None -> false
+
 let rindex_from_opt rope ~before_index chr =
   let result =
-    fold_right_before_index
+    fold_right_ending_at
       (fun (idx, acc) str ->
         let start_idx = idx - String.length str in
         let acc =
@@ -408,7 +415,23 @@ let rindex_from_opt rope ~before_index chr =
         in
         (start_idx, acc))
       (before_index, None) before_index
-      (fun (_, acc) -> match acc with Some _ -> true | None -> false)
+      (fun (_, acc) -> is_some acc)
+      rope
+  in
+  match result with _, Some idx -> Some idx | _ -> None
+
+let index_from_opt rope ~after_index chr =
+  let result =
+    fold_left_starting_at
+      (fun (idx, acc) str ->
+        let acc =
+          match String.index_from_opt str 0 chr with
+          | Some found_idx -> Some (idx + found_idx)
+          | None -> None
+        in
+        (idx + String.length str, acc))
+      (after_index, None) after_index
+      (fun (_, acc) -> is_some acc)
       rope
   in
   match result with _, Some idx -> Some idx | _ -> None
