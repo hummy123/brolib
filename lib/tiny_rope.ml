@@ -422,8 +422,13 @@ let ends_with ~suffix rope =
 
 let is_some = function Some _ -> true | None -> false
 
+let is_past_end start ~search_length pos =
+  match search_length with
+  | Some length -> pos >= start + length
+  | None -> false
+
 let rindex_from_opt rope ~before_index chr =
-  let result =
+  let _, result =
     fold_right_ending_at
       (fun (idx, acc) str ->
         let start_idx = idx - String.length str in
@@ -437,12 +442,12 @@ let rindex_from_opt rope ~before_index chr =
       (fun (_, acc) -> is_some acc)
       rope
   in
-  match result with _, (Some _ as idx) -> idx | _ -> None
+  match result with Some _ as idx -> idx | None -> None
 
 let rindex_opt rope chr = rindex_from_opt rope ~before_index:(size rope - 1) chr
 
-let index_from_opt rope ~after_index chr =
-  let result =
+let index_from_opt rope ~after_index ?search_length chr =
+  let _, result =
     fold_left_starting_at
       (fun (idx, acc) str ->
         let acc =
@@ -452,17 +457,27 @@ let index_from_opt rope ~after_index chr =
         in
         (idx + String.length str, acc))
       (after_index, None) after_index
-      (fun (_, acc) -> is_some acc)
+      (fun (idx, acc) ->
+        is_some acc || is_past_end after_index ~search_length idx)
       rope
   in
-  match result with _, (Some _ as idx) -> idx | _ -> None
+  match result with
+  | Some idx as result -> (
+      match search_length with
+      | None -> result
+      | Some length -> if idx <= after_index + length then result else None)
+  | None -> None
 
-let index_opt rope chr = index_from_opt rope ~after_index:0 chr
+let index_opt rope chr =
+  index_from_opt rope ~after_index:0 ~search_length:(size rope) chr
 
-let contains_from rope ~after_index chr =
-  match index_from_opt rope ~after_index chr with
-  | Some _ -> true
-  | None -> false
+let contains_from rope ~after_index ?search_length chr =
+  let result =
+    match search_length with
+    | Some length -> index_from_opt rope ~after_index ~search_length:length chr
+    | None -> index_from_opt rope ~after_index chr
+  in
+  match result with Some _ -> true | None -> false
 
 let rcontains_from rope ~before_index chr =
   match rindex_from_opt rope ~before_index chr with
