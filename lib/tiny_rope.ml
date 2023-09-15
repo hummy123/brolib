@@ -427,7 +427,12 @@ let is_past_end start ~search_length pos =
   | Some length -> pos >= start + length
   | None -> false
 
-let rindex_from_opt rope ~before_index chr =
+let is_before_start finish ~search_length pos =
+  match search_length with
+  | Some length -> pos >= finish - length
+  | None -> false
+
+let rindex_from_opt rope ~before_index ?search_length chr =
   let _, result =
     fold_right_ending_at
       (fun (idx, acc) str ->
@@ -439,10 +444,16 @@ let rindex_from_opt rope ~before_index chr =
         in
         (start_idx, acc))
       (before_index, None) before_index
-      (fun (_, acc) -> is_some acc)
+      (fun (idx, acc) ->
+        is_some acc || is_before_start before_index ~search_length idx)
       rope
   in
-  match result with Some _ as idx -> idx | None -> None
+  match result with
+  | Some idx as result -> (
+      match search_length with
+      | Some length -> if idx >= before_index - length then result else None
+      | None -> result)
+  | None -> None
 
 let rindex_opt rope chr = rindex_from_opt rope ~before_index:(size rope - 1) chr
 
@@ -468,8 +479,7 @@ let index_from_opt rope ~after_index ?search_length chr =
       | Some length -> if idx <= after_index + length then result else None)
   | None -> None
 
-let index_opt rope chr =
-  index_from_opt rope ~after_index:0 ~search_length:(size rope) chr
+let index_opt rope chr = index_from_opt rope ~after_index:0 chr
 
 let contains_from rope ~after_index ?search_length chr =
   let result =
@@ -499,14 +509,14 @@ let rec search_substring string string_pos substring first_substring_chr rope
     else if string_pos + String.length substring < String.length substring then
       (* If we can get the substring without querying the rope, then do so (better performance). *)
       let check_str = String.sub string string_pos (String.length substring) in
-      if check_str = substring then Some string_pos
+      if check_str = substring then Some rope_pos
       else
         search_substring string (string_pos + 1) substring first_substring_chr
           rope (rope_pos + 1)
     else
       (* We have to query the rope for the substring. *)
       let check_str = sub_string rope_pos (String.length substring) rope in
-      if check_str = substring then Some string_pos
+      if check_str = substring then Some rope_pos
       else
         search_substring string (string_pos + 1) substring first_substring_chr
           rope (rope_pos + 1)
