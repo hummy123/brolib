@@ -437,7 +437,7 @@ let rindex_from_opt rope ~before_index chr =
       (fun (_, acc) -> is_some acc)
       rope
   in
-  match result with _, Some idx -> Some idx | _ -> None
+  match result with _, (Some _ as idx) -> idx | _ -> None
 
 let rindex_opt rope chr = rindex_from_opt rope ~before_index:(size rope - 1) chr
 
@@ -455,6 +455,91 @@ let index_from_opt rope ~after_index chr =
       (fun (_, acc) -> is_some acc)
       rope
   in
-  match result with _, Some idx -> Some idx | _ -> None
+  match result with _, (Some _ as idx) -> idx | _ -> None
 
 let index_opt rope chr = index_from_opt rope ~after_index:0 chr
+
+let contains_from rope ~after_index chr =
+  match index_from_opt rope ~after_index chr with
+  | Some _ -> true
+  | None -> false
+
+let rcontains_from rope ~before_index chr =
+  match rindex_from_opt rope ~before_index chr with
+  | Some _ -> true
+  | None -> false
+
+let contains rope chr =
+  match index_opt rope chr with Some _ -> true | None -> false
+
+(* Internal function for helping to find substring in rope. *)
+let rec search_substring string string_pos substring first_substring_chr rope
+    rope_pos =
+  if string_pos = String.length string then None
+  else
+    let string_chr = String.unsafe_get string string_pos in
+    if string_chr <> first_substring_chr then
+      search_substring string (string_pos + 1) substring first_substring_chr
+        rope (rope_pos + 1)
+    else if string_pos + String.length substring < String.length substring then
+      (* If we can get the substring without querying the rope, then do so (better performance). *)
+      let check_str = String.sub string string_pos (String.length substring) in
+      if check_str = substring then Some string_pos
+      else
+        search_substring string (string_pos + 1) substring first_substring_chr
+          rope (rope_pos + 1)
+    else
+      (* We have to query the rope for the substring. *)
+      let check_str = sub_string rope_pos (String.length substring) rope in
+      if check_str = substring then Some string_pos
+      else
+        search_substring string (string_pos + 1) substring first_substring_chr
+          rope (rope_pos + 1)
+
+(* Find substring in rope. *)
+let index_string_from_opt rope ~after_index substring =
+  if String.length substring > 0 then
+    let first_chr = String.unsafe_get substring 0 in
+    let result =
+      fold_left_starting_at
+        (fun (idx, acc) str ->
+          let acc = search_substring str 0 substring first_chr rope idx in
+          (idx + String.length str, acc))
+        (after_index, None) after_index
+        (fun (_, acc) -> is_some acc)
+        rope
+    in
+    match result with _, (Some _ as idx) -> idx | _, None -> None
+  else None
+
+let index_string_opt rope substring =
+  index_string_from_opt rope ~after_index:0 substring
+
+let contains_string_from_opt rope ~after_index substring =
+  match index_string_from_opt rope ~after_index substring with
+  | Some _ -> true
+  | None -> false
+
+let contains_string_opt rope substring =
+  match index_string_from_opt rope ~after_index:0 substring with
+  | Some _ -> true
+  | None -> false
+
+let rindex_string_from_opt rope ~before_index substring =
+  if String.length substring > 0 then
+    let first_chr = String.unsafe_get substring 0 in
+    let result =
+      fold_right_ending_at
+        (fun (idx, acc) str ->
+          let start_idx = idx - String.length str in
+          let acc = search_substring str 0 substring first_chr rope start_idx in
+          (start_idx, acc))
+        (before_index, None) before_index
+        (fun (_, acc) -> is_some acc)
+        rope
+    in
+    match result with _, (Some _ as idx) -> idx | _, None -> None
+  else None
+
+let rindex_string_opt rope substring =
+  rindex_string_from_opt rope ~before_index:(size rope - 1) substring
