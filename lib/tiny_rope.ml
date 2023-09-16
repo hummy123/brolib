@@ -513,13 +513,16 @@ let rec search_substring string string_pos substring first_substring_chr rope
       else
         search_substring string (string_pos + 1) substring first_substring_chr
           rope (rope_pos + 1)
-    else
+    else if size rope >= rope_pos + String.length substring then
       (* We have to query the rope for the substring. *)
       let check_str = sub_string rope_pos (String.length substring) rope in
       if check_str = substring then Some rope_pos
       else
         search_substring string (string_pos + 1) substring first_substring_chr
           rope (rope_pos + 1)
+    else
+      (* There is no way substring will fit in remainder, so early exit. *)
+      None
 
 (* Find substring in rope. *)
 let index_string_from_opt rope ~after_index substring =
@@ -550,14 +553,51 @@ let contains_string_opt rope substring =
   | Some _ -> true
   | None -> false
 
+(* Internal function for helping to find substring in rope. *)
+let rec search_substring_rev string string_pos substring last_substring_chr rope
+    rope_pos =
+  if string_pos < 0 then None
+  else
+    let string_chr = String.unsafe_get string string_pos in
+    if string_chr <> last_substring_chr then
+      search_substring_rev string (string_pos - 1) substring last_substring_chr
+        rope (rope_pos - 1)
+    else if string_pos - String.length substring >= 0 then
+      (* If we can get the substring without querying the rope, then do so (better performance). *)
+      let check_str =
+        String.sub string
+          (string_pos - String.length substring)
+          (String.length substring)
+      in
+      if check_str = substring then Some rope_pos
+      else
+        search_substring_rev string (string_pos - 1) substring
+          last_substring_chr rope (rope_pos - 1)
+    else if rope_pos - String.length substring >= 0 then
+      (* We have to query the rope for the substring. *)
+      let check_str =
+        sub_string
+          (rope_pos - String.length substring)
+          (String.length substring) rope
+      in
+      if check_str = substring then Some rope_pos
+      else
+        search_substring_rev string (string_pos - 1) substring
+          last_substring_chr rope (rope_pos - 1)
+    else
+      (* There is no way for the substring to fit in the remainder, so exit early. *)
+      None
+
 let rindex_string_from_opt rope ~before_index substring =
   if String.length substring > 0 then
-    let first_chr = String.unsafe_get substring 0 in
+    let last_chr = String.unsafe_get substring (String.length substring - 1) in
     let result =
       fold_right_ending_at
         (fun (idx, acc) str ->
           let start_idx = idx - String.length str in
-          let acc = search_substring str 0 substring first_chr rope start_idx in
+          let acc =
+            search_substring_rev str 0 substring last_chr rope start_idx
+          in
           (start_idx, acc))
         (before_index, None) before_index
         (fun (_, acc) -> is_some acc)
