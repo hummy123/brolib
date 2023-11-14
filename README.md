@@ -10,4 +10,4 @@ In the /bin/ folder, all files except dune, utils.ml and main.ml are arrays gene
 
 Both of the mentioned files under the /lib/ directory are under the permissive 0BSD license. Feel free to use them in any way you like.
 
-There are (F#)[https://github.com/hummy123/brolib-fs] and (Standard ML)[https://github.com/hummy123/brolib-sml] ports of tiny_rope.ml which are also under 0BSD.
+There are [F#](https://github.com/hummy123/brolib-fs) and [Standard ML](https://github.com/hummy123/brolib-sml) ports of tiny_rope.ml which are also under 0BSD.
