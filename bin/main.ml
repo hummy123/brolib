@@ -21,12 +21,12 @@ let () =
      cons the time difference between each individual run to a list,  
      and write the list to a CSV file.
      *)
-  let svelte = Utils.run_txns_acc 0 Sveltecomponent.data [] in
-  let _ = Utils.write_list "ocaml_svelte.csv" svelte in
-  let rust = Utils.run_txns_acc 0 Rustcode.data [] in
-  let _ = Utils.write_list "ocaml_rust.csv" rust in
-  let seph = Utils.run_txns_acc 0 Sephblog.data [] in
-  let _ = Utils.write_list "ocaml_seph.csv" seph in
-  let automerge = Utils.run_txns_acc 0 Automerge.data [] in
-  let _ = Utils.write_list "ocaml_automerge.csv" automerge in
+  (* let svelte = Utils.run_txns_acc 0 Sveltecomponent.data [] in *)
+  (* let _ = Utils.write_list "ocaml_svelte.csv" svelte in *)
+  (* let rust = Utils.run_txns_acc 0 Rustcode.data [] in *)
+  (* let _ = Utils.write_list "ocaml_rust.csv" rust in *)
+  (* let seph = Utils.run_txns_acc 0 Sephblog.data [] in *)
+  (* let _ = Utils.write_list "ocaml_seph.csv" seph in *)
+  (* let automerge = Utils.run_txns_acc 0 Automerge.data [] in *)
+  (* let _ = Utils.write_list "ocaml_automerge.csv" automerge in *)
   ()
