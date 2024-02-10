@@ -53,27 +53,28 @@ let run_edit_traces title empty f_ins f_del f_to_string =
 let get_svelte empty f_ins f_del =
   run_txns_time "svelte" Sveltecomponent.data empty f_ins f_del
 
-let run_txns_result_tiny (arr : (int * int * string) array)  =
+let run_txns_result_tiny (arr : (int * int * string) array) =
   let open Brolib in
   Array.fold_left
     (fun rope (pos, del_num, ins_str) ->
-      let rope = if del_num > 0 then Tiny_rope.delete pos del_num rope else rope in
-      if ins_str <> String.empty then Tiny_rope.insert pos ins_str rope else rope)
+      let rope =
+        if del_num > 0 then Tiny_rope.delete pos del_num rope else rope
+      in
+      if ins_str <> String.empty then Tiny_rope.insert pos ins_str rope
+      else rope)
     Tiny_rope.empty arr
 
 let rec run_txns_acc counter arr acc =
   if counter = 1000 then acc
   else
-    let start_time = Sys.time() in
+    let start_time = Sys.time () in
     let _ = run_txns_result_tiny arr in
-    let end_time = Sys.time() in
+    let end_time = Sys.time () in
     (* Convert time from seconds to milliseconds. *)
-    let time_diff = (end_time -. start_time) *. 1000.0 in
-    let time_diff = string_of_float time_diff in
-    run_txns_acc (counter + 1) arr (time_diff::acc)
+    let time_diff = end_time -. start_time in
+    run_txns_acc (counter + 1) arr (time_diff :: acc)
 
 let write_list filename acc =
-  let str = String.concat "," acc in
-  let oc = open_out filename in
-  Out_channel.output_string oc str;
-  close_out oc;
+  let sum = List.fold_left (fun a b -> a +. b) 0.0 acc in
+  let _ = Printf.printf "Avarage time: %f ms\n" sum in
+  ()
