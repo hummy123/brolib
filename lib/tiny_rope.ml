@@ -51,16 +51,9 @@ let ins_n2_left left right =
       let t4_size = size t4 in
       let right = N2 (t3, t3_size, t4_size, t4) in
       N2 (left, t1_size + t2_size, t3_size + t4_size, right)
-  | N3 (t1, t2, t3), (N2 _ as t4) ->
-      N3 (N2 (t1, size t1, size t2, t2), N1 t3, t4)
   | N3 (t1, t2, t3), t4 ->
-      let t1_size = size t1 in
-      let t2_size = size t2 in
-      let left = N2 (t1, t1_size, t2_size, t2) in
-      let t3_size = size t3 in
-      let t4_size = size t4 in
-      let right = N2 (t3, t3_size, t4_size, t4) in
-      N2 (left, t1_size + t2_size, t3_size + t4_size, right)
+      let left = N2 (t1, size t1, size t2, t2) in
+      N3 (left, N1 t3, t4)
   | l, r -> N2 (l, size l, size r, r)
 
 let ins_n2_right left right =
@@ -74,16 +67,9 @@ let ins_n2_right left right =
       let t4_size = size t4 in
       let right = N2 (t3, t3_size, t4_size, t4) in
       N2 (left, t1_size + t2_size, t3_size + t4_size, right)
-  | (N2 _ as t1), N3 (t2, t3, t4) ->
-      N3 (t1, N1 t2, N2 (t3, size t3, size t4, t4))
   | t1, N3 (t2, t3, t4) ->
-      let t1_size = size t1 in
-      let t2_size = size t2 in
-      let left = N2 (t1, t1_size, t2_size, t2) in
-      let t3_size = size t3 in
-      let t4_size = size t4 in
-      let right = N2 (t3, t3_size, t4_size, t4) in
-      N2 (left, t1_size + t2_size, t3_size + t4_size, right)
+      let right = N2 (t3, size t3, size t4, t4) in
+      N3 (t1, N1 t2, right)
   | l, r -> N2 (l, size l, size r, r)
 
 let rec ins cur_index string = function
