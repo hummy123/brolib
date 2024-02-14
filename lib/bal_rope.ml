@@ -63,17 +63,9 @@ let ins_n2_left left right =
       let right = N2 (t3, t3_size, t4) in
       let t2_size = size t2 in
       N2 (left, t1_size + t2_size, right)
-  | N3 (t1, t2, t3), (N2 _ as t4) ->
-      let t1_size = size t1 in
-      let left = N2 (t1, t1_size, t2) in
-      N3 (left, N1 t3, t4)
   | N3 (t1, t2, t3), t4 ->
-      let t1_size = size t1 in
-      let left = N2 (t1, t1_size, t2) in
-      let t3_size = size t3 in
-      let right = N2 (t3, t3_size, t4) in
-      let t2_size = size t2 in
-      N2 (left, t1_size + t2_size, right)
+      let left = N2 (t1, size t1, t2) in
+      N3 (left, N1 t3, t4)
   | l, r -> N2 (l, size l, r)
 
 let del_n2_left left right =
@@ -105,16 +97,9 @@ let ins_n2_right left right =
       let right = N2 (t3, t3_size, t4) in
       let t2_size = size t2 in
       N2 (left, t1_size + t2_size, right)
-  | (N2 _ as t1), N3 (t2, t3, t4) ->
+  | t1, N3 (t2, t3, t4) ->
       let right = N2 (t3, size t3, t4) in
       N3 (t1, N1 t2, right)
-  | t1, N3 (t2, t3, t4) ->
-      let t1_size = size t1 in
-      let left = N2 (t1, t1_size, t2) in
-      let t3_size = size t3 in
-      let right = N2 (t3, t3_size, t4) in
-      let t2_size = size t2 in
-      N2 (left, t1_size + t2_size, right)
   | l, r -> N2 (l, size l, r)
 
 let del_n2_right left right =
@@ -168,7 +153,9 @@ let rec ins cur_index string = function
         (* String must be split into 3 different parts. *)
         let sub1 = String.sub str 0 cur_index in
         let sub2 = String.sub str cur_index (String.length str - cur_index) in
-        (N3 (N0 sub1, N0 string, N0 sub2), AddedNode)
+        let left = N2 (N0 sub1, String.length sub1, N0 string) in
+        let right = N0 sub2 in
+        (ins_n2_left left right, AddedNode)
   | N1 t -> (
       let t, action = ins cur_index string t in
       match action with AddedNode -> (ins_n1 t, action) | _ -> (N1 t, action))
@@ -252,3 +239,33 @@ let rec del_internal start_idx end_idx = function
 let delete start length rope =
   let rope, did_ins = del_internal start (start + length) rope in
   if did_ins then ins_root rope else rope
+
+let rec height = function
+  | N0 _ -> 0
+  | N1 t -> height t + 1
+  | N2 (l, _, r) -> Int.max (height l) (height r) + 1
+  | _ -> failwith ""
+
+let height rope =
+  match rope with
+  | N2 (l, _, r) ->
+      let left = height l in
+      let right = height r in
+      let _ = Printf.printf "\ntry_height   l: %i; r: %i\n" left right in
+      let diff = if left < right then right - left else left - right in
+      let _ = Printf.printf "abs_height: %i\n\n" diff in
+      height rope
+  | _ -> height rope
+
+let rec count_balance = function
+  | N0 _ -> 0
+  | N1 t -> count_balance t + 1
+  | N2 (l, _, r) ->
+      let l = count_balance l + 1 in
+      let r = count_balance r + 1 in
+      l + r
+  | _ -> failwith ""
+
+let count_balance rope =
+  let num_nodes = count_balance rope in
+  Printf.printf "num nodes: %i" num_nodes
