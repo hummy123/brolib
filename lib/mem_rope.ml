@@ -15,19 +15,19 @@ let of_string string = N0 string
 let rec fold_right f state = function
   | N0 s -> f state s
   | N1 t -> fold_right f state t
-  | N2(l, _, r) ->
+  | N2 (l, _, r) ->
       let state = fold_right f state r in
       fold_right f state l
   | _ -> failwith "mem_rope fold_right failure"
 
 let to_string rope =
-  let lst = fold_right (fun acc str -> str::acc) [] rope in
+  let lst = fold_right (fun acc str -> str :: acc) [] rope in
   String.concat "" lst
 
 let rec size acc = function
   | N0 s -> acc + String.length s
   | N1 t -> size acc t
-  | N2 (l, lm, r) -> size (acc + lm) r
+  | N2 (_, lm, r) -> size (acc + lm) r
   | _ -> failwith "mem_rope failed in function size"
 
 let size t = size 0 t
@@ -52,18 +52,18 @@ let n1 = function
 
 let ins_n2_left left right =
   match (left, right) with
-  | L2 (s1, s2), t3 -> N3(N0 s1, N0 s2, t3)
+  | L2 (s1, s2), t3 -> N3 (N0 s1, N0 s2, t3)
   | N3 (t1, t2, t3), N1 t4 ->
       let t1_size = size t1 in
       let left = N2 (t1, t1_size, t2) in
       let t3_size = size t3 in
-      let right = N2(t3, t3_size, t4) in
+      let right = N2 (t3, t3_size, t4) in
       let t2_size = size t2 in
-      N2(left, t1_size + t2_size, right)
+      N2 (left, t1_size + t2_size, right)
   | N3 (t1, t2, t3), (N2 _ as t4) ->
       let t1_size = size t1 in
-      let left = N2(t1, t1_size, t2) in
-      N3(left, N1 t3, t4)
+      let left = N2 (t1, t1_size, t2) in
+      N3 (left, N1 t3, t4)
   | N3 (t1, t2, t3), t4 ->
       let t1_size = size t1 in
       let left = N2 (t1, t1_size, t2) in
@@ -71,8 +71,7 @@ let ins_n2_left left right =
       let right = N2 (t3, t3_size, t4) in
       let t2_size = size t2 in
       N2 (left, t1_size + t2_size, right)
-  | (l, r) ->
-      N2 (l, size l, r)
+  | l, r -> N2 (l, size l, r)
 
 let ins_n2_right left right =
   match (left, right) with
@@ -85,8 +84,8 @@ let ins_n2_right left right =
       let t2_size = size t2 in
       N2 (left, t1_size + t2_size, right)
   | (N2 _ as t1), N3 (t2, t3, t4) ->
-      let right = N2(t3, size t3, t4) in
-      N3(t1, N1 t2, right)
+      let right = N2 (t3, size t3, t4) in
+      N3 (t1, N1 t2, right)
   | t1, N3 (t2, t3, t4) ->
       let t1_size = size t1 in
       let left = N2 (t1, t1_size, t2) in
@@ -107,57 +106,24 @@ let rec ins cur_index string = function
           N0 (str ^ string)
         else L2 (str, string)
       else if String.length str + String.length string <= target_length then
-        (* Create mutable byte array containing length of both strings. *)
-        let bytes = Bytes.create (String.length str + String.length string) in
-        (* Copy the first half of the old string to the start of the Bytes. *)
-        let _ = Bytes.unsafe_blit_string str 0 bytes 0 cur_index in
-        (* Copy the second half of the old string to the end of the Bytes. *)
-        let _ =
-          Bytes.unsafe_blit_string str cur_index bytes
-            (cur_index + String.length string)
-            (String.length str - cur_index)
-        in
-        (* Copy the newly inserted string to the middle of the Bytes. *)
-        let _ =
-          Bytes.unsafe_blit_string string 0 bytes cur_index
-            (String.length string)
-        in
-        (* Return the Bytes as a string. This is still outwardly immutable,
-           because the mutable bytes were created in this function and returned as an immutable string
-           by this function too. *)
-        N0 (Bytes.unsafe_to_string bytes)
+        let new_str = String_join.join_three str string cur_index in
+        N0 new_str
         (* All if-staments below are if concatenating into a single string exceeds target_length. *)
       else if
         (* If first half of old string + insert string does not exceed target_length. *)
         cur_index + String.length string <= target_length
       then
-        let bytes = Bytes.create (cur_index + String.length string) in
-        (* Add first half of old string to Bytes. *)
-        let _ = Bytes.unsafe_blit_string str 0 bytes 0 cur_index in
-        (* Add insert string to Bytes. *)
-        let _ =
-          Bytes.unsafe_blit_string string 0 bytes cur_index
-            (String.length string)
-        in
+        let sub1 = String_join.join_start str string cur_index in
         let sub2 = String.sub str cur_index (String.length str - cur_index) in
-        L2 (Bytes.unsafe_to_string bytes, sub2)
+        L2 (sub1, sub2)
         (* If second half olf old + insert string does not exceed target length. *)
       else if
         String.length str - cur_index + String.length string <= target_length
       then
         (* Get first substring. *)
         let sub1 = String.sub str 0 cur_index in
-        let bytes =
-          Bytes.create (String.length string + (String.length str - cur_index))
-        in
-        let _ =
-          Bytes.unsafe_blit_string string 0 bytes 0 (String.length string)
-        in
-        let _ =
-          Bytes.unsafe_blit_string str cur_index bytes (String.length string)
-            (String.length str - cur_index)
-        in
-        L2 (sub1, Bytes.unsafe_to_string bytes)
+        let sub2 = String_join.join_last str string cur_index in
+        L2 (sub1, sub2)
       else
         (* String must be split into 3 different parts. *)
         let sub1 = String.sub str 0 cur_index in
@@ -179,15 +145,8 @@ let rec del_internal start_idx end_idx = function
       else if start_idx >= 0 && end_idx <= String.length str then
         (* In middle of this node. *)
         if start_idx + (String.length str - end_idx) <= target_length then
-          let bytes =
-            Bytes.create (start_idx + (String.length str - end_idx))
-          in
-          let _ = Bytes.unsafe_blit_string str 0 bytes 0 start_idx in
-          let _ =
-            Bytes.unsafe_blit_string str end_idx bytes start_idx
-              (String.length str - end_idx)
-          in
-          (N0 (Bytes.unsafe_to_string bytes), false)
+          let str = String_join.del_middle start_idx end_idx str in
+          (N0 str, false)
         else
           let sub1 = String.sub str 0 start_idx in
           let sub2 = String.sub str end_idx (String.length str - end_idx) in
@@ -226,4 +185,3 @@ let rec del_internal start_idx end_idx = function
 let delete start length rope =
   let rope, did_ins = del_internal start (start + length) rope in
   if did_ins then root rope else rope
-

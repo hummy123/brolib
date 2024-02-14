@@ -97,57 +97,24 @@ let rec ins cur_index string = function
           N0 (str ^ string)
         else L2 (str, string)
       else if String.length str + String.length string <= target_length then
-        (* Create mutable byte array containing length of both strings. *)
-        let bytes = Bytes.create (String.length str + String.length string) in
-        (* Copy the first half of the old string to the start of the Bytes. *)
-        let _ = Bytes.unsafe_blit_string str 0 bytes 0 cur_index in
-        (* Copy the second half of the old string to the end of the Bytes. *)
-        let _ =
-          Bytes.unsafe_blit_string str cur_index bytes
-            (cur_index + String.length string)
-            (String.length str - cur_index)
-        in
-        (* Copy the newly inserted string to the middle of the Bytes. *)
-        let _ =
-          Bytes.unsafe_blit_string string 0 bytes cur_index
-            (String.length string)
-        in
-        (* Return the Bytes as a string. This is still outwardly immutable,
-           because the mutable bytes were created in this function and returned as an immutable string
-           by this function too. *)
-        N0 (Bytes.unsafe_to_string bytes)
+        let new_str = String_join.join_three str string cur_index in
+        N0 new_str
         (* All if-staments below are if concatenating into a single string exceeds target_length. *)
       else if
         (* If first half of old string + insert string does not exceed target_length. *)
         cur_index + String.length string <= target_length
       then
-        let bytes = Bytes.create (cur_index + String.length string) in
-        (* Add first half of old string to Bytes. *)
-        let _ = Bytes.unsafe_blit_string str 0 bytes 0 cur_index in
-        (* Add insert string to Bytes. *)
-        let _ =
-          Bytes.unsafe_blit_string string 0 bytes cur_index
-            (String.length string)
-        in
+        let sub1 = String_join.join_start str string cur_index in
         let sub2 = String.sub str cur_index (String.length str - cur_index) in
-        L2 (Bytes.unsafe_to_string bytes, sub2)
+        L2 (sub1, sub2)
         (* If second half olf old + insert string does not exceed target length. *)
       else if
         String.length str - cur_index + String.length string <= target_length
       then
         (* Get first substring. *)
         let sub1 = String.sub str 0 cur_index in
-        let bytes =
-          Bytes.create (String.length string + (String.length str - cur_index))
-        in
-        let _ =
-          Bytes.unsafe_blit_string string 0 bytes 0 (String.length string)
-        in
-        let _ =
-          Bytes.unsafe_blit_string str cur_index bytes (String.length string)
-            (String.length str - cur_index)
-        in
-        L2 (sub1, Bytes.unsafe_to_string bytes)
+        let sub2 = String_join.join_last str string cur_index in
+        L2 (sub1, sub2)
       else
         (* String must be split into 3 different parts. *)
         let sub1 = String.sub str 0 cur_index in
@@ -235,15 +202,8 @@ let rec del_internal start_idx end_idx = function
       else if start_idx >= 0 && end_idx <= String.length str then
         (* In middle of this node. *)
         if start_idx + (String.length str - end_idx) <= target_length then
-          let bytes =
-            Bytes.create (start_idx + (String.length str - end_idx))
-          in
-          let _ = Bytes.unsafe_blit_string str 0 bytes 0 start_idx in
-          let _ =
-            Bytes.unsafe_blit_string str end_idx bytes start_idx
-              (String.length str - end_idx)
-          in
-          (N0 (Bytes.unsafe_to_string bytes), false)
+          let str = String_join.del_middle start_idx end_idx str in
+          (N0 str, false)
         else
           let sub1 = String.sub str 0 start_idx in
           let sub2 = String.sub str end_idx (String.length str - end_idx) in
@@ -390,7 +350,7 @@ let fold_right_starting_at f state index f_term rope =
   fold_right_starting_at f state index false f_term rope
 
 let to_string rope =
-  let lst = fold_back (fun acc str -> str::acc) [] rope in
+  let lst = fold_back (fun acc str -> str :: acc) [] rope in
   String.concat "" lst
 
 type rope_stats = { utf8_length : int }
@@ -400,203 +360,3 @@ let stats rope =
   { utf8_length }
 
 let flatten rope = fold (fun rope str -> append str rope) rope
-
-(* Implementation of some functions from the String.module, but on Tiny_rope. *)
-let starts_with ~prefix rope =
-  let str = sub_string 0 (String.length prefix) rope in
-  str = prefix
-
-let ends_with ~suffix rope =
-  let str =
-    sub_string (size rope - String.length suffix) (String.length suffix) rope
-  in
-  str = suffix
-
-let is_some = function Some _ -> true | None -> false
-
-let is_past_end start ~search_length pos =
-  match search_length with
-  | Some length -> pos >= start + length
-  | None -> false
-
-let is_before_start finish ~search_length pos =
-  match search_length with
-  | Some length -> pos >= finish - length
-  | None -> false
-
-let rindex_from_opt rope ~before_index ?search_length chr =
-  let _, result =
-    fold_right_ending_at
-      (fun (idx, acc) str ->
-        let start_idx = idx - String.length str in
-        let acc =
-          match String.rindex_from_opt str (String.length str - 1) chr with
-          | Some found_idx -> Some (start_idx + found_idx)
-          | None -> None
-        in
-        (start_idx, acc))
-      (before_index, None) before_index
-      (fun (idx, acc) ->
-        is_some acc || is_before_start before_index ~search_length idx)
-      rope
-  in
-  match result with
-  | Some idx as result -> (
-      match search_length with
-      | Some length -> if idx >= before_index - length then result else None
-      | None -> result)
-  | None -> None
-
-let rindex_opt rope chr = rindex_from_opt rope ~before_index:(size rope - 1) chr
-
-let index_from_opt rope ~after_index ?search_length chr =
-  let _, result =
-    fold_left_starting_at
-      (fun (idx, acc) str ->
-        let acc =
-          match String.index_from_opt str 0 chr with
-          | Some found_idx -> Some (idx + found_idx)
-          | None -> None
-        in
-        (idx + String.length str, acc))
-      (after_index, None) after_index
-      (fun (idx, acc) ->
-        is_some acc || is_past_end after_index ~search_length idx)
-      rope
-  in
-  match result with
-  | Some idx as result -> (
-      match search_length with
-      | None -> result
-      | Some length -> if idx <= after_index + length then result else None)
-  | None -> None
-
-let index_opt rope chr = index_from_opt rope ~after_index:0 chr
-
-let contains_from rope ~after_index ?search_length chr =
-  let result =
-    match search_length with
-    | Some length -> index_from_opt rope ~after_index ~search_length:length chr
-    | None -> index_from_opt rope ~after_index chr
-  in
-  match result with Some _ -> true | None -> false
-
-let rcontains_from rope ~before_index chr =
-  match rindex_from_opt rope ~before_index chr with
-  | Some _ -> true
-  | None -> false
-
-let contains rope chr =
-  match index_opt rope chr with Some _ -> true | None -> false
-
-(* Internal function for helping to find substring in rope. *)
-let rec search_substring string string_pos substring first_substring_chr rope
-    rope_pos =
-  if string_pos = String.length string then None
-  else
-    let string_chr = String.unsafe_get string string_pos in
-    if string_chr <> first_substring_chr then
-      search_substring string (string_pos + 1) substring first_substring_chr
-        rope (rope_pos + 1)
-    else if string_pos + String.length substring < String.length substring then
-      (* If we can get the substring without querying the rope, then do so (better performance). *)
-      let check_str = String.sub string string_pos (String.length substring) in
-      if check_str = substring then Some rope_pos
-      else
-        search_substring string (string_pos + 1) substring first_substring_chr
-          rope (rope_pos + 1)
-    else if size rope >= rope_pos + String.length substring then
-      (* We have to query the rope for the substring. *)
-      let check_str = sub_string rope_pos (String.length substring) rope in
-      if check_str = substring then Some rope_pos
-      else
-        search_substring string (string_pos + 1) substring first_substring_chr
-          rope (rope_pos + 1)
-    else
-      (* There is no way substring will fit in remainder, so early exit. *)
-      None
-
-(* Find substring in rope. *)
-let index_string_from_opt rope ~after_index substring =
-  if String.length substring > 0 then
-    let first_chr = String.unsafe_get substring 0 in
-    let result =
-      fold_left_starting_at
-        (fun (idx, acc) str ->
-          let acc = search_substring str 0 substring first_chr rope idx in
-          (idx + String.length str, acc))
-        (after_index, None) after_index
-        (fun (_, acc) -> is_some acc)
-        rope
-    in
-    match result with _, (Some _ as idx) -> idx | _, None -> None
-  else None
-
-let index_string_opt rope substring =
-  index_string_from_opt rope ~after_index:0 substring
-
-let contains_string_from_opt rope ~after_index substring =
-  match index_string_from_opt rope ~after_index substring with
-  | Some _ -> true
-  | None -> false
-
-let contains_string_opt rope substring =
-  match index_string_from_opt rope ~after_index:0 substring with
-  | Some _ -> true
-  | None -> false
-
-(* Internal function for helping to find substring in rope. *)
-let rec search_substring_rev string string_pos substring last_substring_chr rope
-    rope_pos =
-  if string_pos < 0 then None
-  else
-    let string_chr = String.unsafe_get string string_pos in
-    if string_chr <> last_substring_chr then
-      search_substring_rev string (string_pos - 1) substring last_substring_chr
-        rope (rope_pos - 1)
-    else if string_pos - String.length substring >= 0 then
-      (* If we can get the substring without querying the rope, then do so (better performance). *)
-      let check_str =
-        String.sub string
-          (string_pos - String.length substring)
-          (String.length substring)
-      in
-      if check_str = substring then Some rope_pos
-      else
-        search_substring_rev string (string_pos - 1) substring
-          last_substring_chr rope (rope_pos - 1)
-    else if rope_pos - String.length substring >= 0 then
-      (* We have to query the rope for the substring. *)
-      let check_str =
-        sub_string
-          (rope_pos - String.length substring)
-          (String.length substring) rope
-      in
-      if check_str = substring then Some rope_pos
-      else
-        search_substring_rev string (string_pos - 1) substring
-          last_substring_chr rope (rope_pos - 1)
-    else
-      (* There is no way for the substring to fit in the remainder, so exit early. *)
-      None
-
-let rindex_string_from_opt rope ~before_index substring =
-  if String.length substring > 0 then
-    let last_chr = String.unsafe_get substring (String.length substring - 1) in
-    let result =
-      fold_right_ending_at
-        (fun (idx, acc) str ->
-          let start_idx = idx - String.length str in
-          let acc =
-            search_substring_rev str 0 substring last_chr rope start_idx
-          in
-          (start_idx, acc))
-        (before_index, None) before_index
-        (fun (_, acc) -> is_some acc)
-        rope
-    in
-    match result with _, (Some _ as idx) -> idx | _, None -> None
-  else None
-
-let rindex_string_opt rope substring =
-  rindex_string_from_opt rope ~before_index:(size rope - 1) substring

@@ -1,7 +1,7 @@
 let rec loop pos f =
-  if pos = 0 then f()
+  if pos = 0 then f ()
   else
-    let _ = f() in
+    let _ = f () in
     loop (pos + 1) f
 
 (* Times any function and returns the output of that function. *)
