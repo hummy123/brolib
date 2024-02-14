@@ -293,7 +293,6 @@ let rec fold f state = function
   | _ -> failwith ""
 
 let rec fold_back f state = function
-  | N0 "" -> state
   | N0 str -> f state str
   | N1 t -> fold_back f state t
   | N2 (l, _, _, r) ->
@@ -391,15 +390,8 @@ let fold_right_starting_at f state index f_term rope =
   fold_right_starting_at f state index false f_term rope
 
 let to_string rope =
-  let bytes = Bytes.create (size rope) in
-  let _ =
-    fold
-      (fun pos str ->
-        Bytes.unsafe_blit_string str 0 bytes pos (String.length str);
-        pos + String.length str)
-      0 rope
-  in
-  Bytes.unsafe_to_string bytes
+  let lst = fold_back (fun acc str -> str::acc) [] rope in
+  String.concat "" lst
 
 type rope_stats = { utf8_length : int }
 

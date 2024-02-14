@@ -1,9 +1,15 @@
+let rec loop pos f =
+  if pos = 0 then f()
+  else
+    let _ = f() in
+    loop (pos + 1) f
+
 (* Times any function and returns the output of that function. *)
 let time_func title f =
   let title = "\nStarting " ^ title ^ "...\n" in
   let _ = Printf.printf "%s" title in
   let t = Sys.time () in
-  let x = f () in
+  let x = loop 0 f in
   let endTime = (Sys.time () -. t) *. 1000.0 in
   let _ = Printf.printf "Execution time: %f ms\n" endTime in
   x
