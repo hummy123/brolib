@@ -7,19 +7,36 @@ type rope =
   | N3 of rope * rope * rope
 
 type t = rope
-type balance = AddedNode | DeletedNode | NoAction
+
+(* Data for constructing rope, for tail recursion. *)
+type bal_node =
+  (* B1 parallels the N1 case, which is a signal to possibly call the n1 smart constructor. *)
+  | B1
+  (* B2Left contains left rope for N2 case, and possibly signals to call ins_n2_left or del_n2_left. *)
+  | B2Left of rope
+  (* Contains right rope for N2 case. Possibl xignal to call ins_n2_right or del_n2_left. *)
+  | B2Right of rope
 
 let target_length = 1024
 let empty = N0 ""
 let of_string string = N0 string
 
-let rec fold_right f state = function
-  | N0 s -> f state s
-  | N1 t -> fold_right f state t
-  | N2 (l, _, r) ->
-      let state = fold_right f state r in
-      fold_right f state l
-  | _ -> failwith "bal_rope fold_right failure"
+(* Tail recursive fold_right. *)
+let rec fold_right lst f state = function
+  | N0 s ->
+      let state = f state s in
+      fold_right_lst f state lst
+  | N1 t -> fold_right lst f state t
+  | N2 (l, _, r) -> fold_right (l :: lst) f state r
+  | _ -> failwith "fold_right failure"
+
+and fold_right_lst f state = function
+  | [] -> state
+  | x :: xs ->
+      let state = fold_right xs f state x in
+      fold_right_lst f state xs
+
+let fold_right f state rope = fold_right [] f state rope
 
 let to_string rope =
   let lst = fold_right (fun acc str -> str :: acc) [] rope in
@@ -120,19 +137,87 @@ let del_n2_right left right =
       N2 (left, left_size, right)
   | l, r -> N2 (l, size l, r)
 
-let rec ins cur_index string = function
+let rec ins_added_node rope lst =
+  match lst with
+  | x :: xs ->
+      let rope =
+        match x with
+        | B1 -> ins_n1 rope
+        | B2Left l -> ins_n2_right l rope
+        | B2Right r -> ins_n2_left rope r
+      in
+      ins_added_node rope xs
+  | [] -> ins_root rope
+
+let rec ins_deleted_node rope lst =
+  match lst with
+  | x :: xs ->
+      let rope =
+        match x with
+        | B1 -> N1 rope
+        | B2Left l -> del_n2_right l rope
+        | B2Right r -> del_n2_left rope r
+      in
+      ins_deleted_node rope xs
+  | [] -> del_root rope
+
+let rec ins_no_action rope lst =
+  match lst with
+  | x :: xs ->
+      let rope =
+        match x with
+        | B1 -> N1 rope
+        | B2Left l ->
+            let lm = size l in
+            N2 (l, lm, rope)
+        | B2Right r -> N2 (rope, size rope, r)
+      in
+      ins_no_action rope xs
+  | [] -> rope
+
+let ins_no_action rope lst =
+  match lst with
+  | x :: xs -> (
+      match x with
+      | B2Left l -> (
+          match (l, rope) with
+          | N0 s1, N0 s2 ->
+              if String.length s1 + String.length s2 <= target_length then
+                let rope = N0 (s1 ^ s2) in
+                ins_deleted_node rope xs
+              else ins_no_action rope lst
+          | _ -> ins_no_action rope lst)
+      | B2Right r -> (
+          match (rope, r) with
+          | N0 s1, N0 s2 ->
+              if String.length s1 + String.length s2 <= target_length then
+                let rope = N0 (s1 ^ s2) in
+                ins_deleted_node rope xs
+              else ins_no_action rope lst
+          | _ -> ins_no_action rope lst)
+      | _ -> ins_no_action rope lst)
+  | [] -> rope
+
+let rec ins cur_index string lst = function
   | N0 str ->
       if cur_index <= 0 then
         if String.length str + String.length string <= target_length then
-          (N0 (string ^ str), NoAction)
-        else (L2 (string, str), AddedNode)
+          let rope = N0 (string ^ str) in
+          ins_no_action rope lst
+        else
+          let rope = L2 (string, str) in
+          ins_added_node rope lst
       else if cur_index >= String.length str then
         if String.length str + String.length string <= target_length then
-          (N0 (str ^ string), NoAction)
-        else (L2 (str, string), AddedNode)
+          let rope = N0 (str ^ string) in
+          ins_no_action rope lst
+        else
+          let rope = L2 (str, string) in
+          ins_added_node rope lst
       else if String.length str + String.length string <= target_length then
         let new_str = String_join.join_three str string cur_index in
-        (N0 new_str, NoAction)
+        let rope = N0 new_str in
+        ins_no_action rope lst
         (* All if-staments below are if concatenating into a single string exceeds target_length. *)
       else if
         (* If first half of old string + insert string does not exceed target_length. *)
@@ -140,7 +225,8 @@ let rec ins cur_index string = function
       then
         let sub1 = String_join.join_start str string cur_index in
         let sub2 = String.sub str cur_index (String.length str - cur_index) in
-        (L2 (sub1, sub2), AddedNode)
+        let rope = L2 (sub1, sub2) in
+        ins_added_node rope lst
         (* If second half olf old + insert string does not exceed target length. *)
       else if
         String.length str - cur_index + String.length string <= target_length
@@ -148,48 +234,29 @@ let rec ins cur_index string = function
         (* Get first substring. *)
         let sub1 = String.sub str 0 cur_index in
         let sub2 = String_join.join_last str string cur_index in
-        (L2 (sub1, sub2), AddedNode)
+        let rope = L2 (sub1, sub2) in
+        ins_added_node rope lst
       else
         (* String must be split into 3 different parts. *)
         let sub1 = String.sub str 0 cur_index in
         let sub2 = String.sub str cur_index (String.length str - cur_index) in
         let left = N2 (N0 sub1, String.length sub1, N0 string) in
         let right = N0 sub2 in
-        (ins_n2_left left right, AddedNode)
-  | N1 t -> (
-      let t, action = ins cur_index string t in
-      match action with AddedNode -> (ins_n1 t, action) | _ -> (N1 t, action))
-  | N2 (l, lm, r) -> (
+        let rope = ins_n2_left left right in
+        ins_added_node rope lst
+  | N1 t ->
+      let lst = B1 :: lst in
+      ins cur_index string lst t
+  | N2 (l, lm, r) ->
       if cur_index < lm then
-        let l, action = ins cur_index string l in
-        match action with
-        | NoAction -> (
-            match (l, r) with
-            | N0 s1, N0 s2
-              when String.length s1 + String.length s2 <= target_length ->
-                (N0 (s1 ^ s2), DeletedNode)
-            | _ -> (N2 (l, lm + String.length string, r), action))
-        | AddedNode -> (ins_n2_left l r, action)
-        | DeletedNode -> (del_n2_left l r, action)
+        let lst = B2Right r :: lst in
+        ins cur_index string lst l
       else
-        let r, action = ins (cur_index - lm) string r in
-        match action with
-        | NoAction -> (
-            match (l, r) with
-            | N0 s1, N0 s2
-              when String.length s1 + String.length s2 <= target_length ->
-                (N0 (s1 ^ s2), DeletedNode)
-            | _ -> (N2 (l, lm, r), action))
-        | AddedNode -> (ins_n2_right l r, action)
-        | DeletedNode -> (del_n2_right l r, action))
+        let lst = B2Left l :: lst in
+        ins (cur_index - lm) string lst r
   | _ -> failwith ""
 
-let insert index string rope =
-  let rope, action = ins index string rope in
-  match action with
-  | NoAction -> rope
-  | AddedNode -> ins_root rope
-  | DeletedNode -> del_root rope
+let insert index string rope = ins index string [] rope
 
 let rec del_internal start_idx end_idx = function
   | N0 str ->
