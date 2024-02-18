@@ -290,37 +290,30 @@ let rec del_internal start_idx end_idx = function
         (empty, false)
       else if start_idx >= 0 && end_idx <= str.length then
         (* In middle of this node. *)
-        if start_idx + (str.length - end_idx) <= target_length then
-          let sub1 = String.sub str.str str.start (str.start + start_idx) in
-          let sub2 =
-            String.sub str.str (str.start + end_idx) (str.length - end_idx)
-          in
-          let n_str = sub1 ^ sub2 in
-          (N0 { start = 0; length = String.length n_str; str = n_str }, false)
-        else
-          let n =
-            L2
-              {
-                s1 = str.start;
-                l1 = start_idx;
-                str1 = str.str;
-                s2 = str.start + end_idx;
-                l2 = str.start + end_idx - str.length;
-                str2 = str.str;
-              }
-          in
-          (n, true)
+        let n =
+          L2
+            {
+              s1 = str.start;
+              l1 = start_idx;
+              str1 = str.str;
+              s2 = str.start + end_idx;
+              l2 = str.length - end_idx;
+              str2 = str.str;
+            }
+        in
+
+        (n, true)
       else if start_idx >= 0 && end_idx >= str.length then
         (* Starts at this node. *)
-        ( N0 { start = str.start; length = str.start + start_idx; str = str.str },
-          false )
+        let n = N0 { start = str.start; length = start_idx; str = str.str } in
+        (n, false)
       else
         (* Ends at this node. *)
         let n =
           N0
             {
               start = str.start + end_idx;
-              length = str.start + str.length - end_idx;
+              length = str.length - end_idx;
               str = str.str;
             }
         in
